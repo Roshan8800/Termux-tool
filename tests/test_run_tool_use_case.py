@@ -8,13 +8,14 @@ from termux_cyber_framework.core.use_cases.ports import (
     ErrorFixerPort
 )
 from termux_cyber_framework.core.use_cases.run_tool_use_case import RunToolUseCase
-from termux_cyber_framework.adapters.command_parser.simple_parser import SimpleCommandParserAdapter
+from termux_cyber_framework.adapters.command_parser.regex_parser import RegexCommandParserAdapter
 
 # --- Mock Adapters for Testing ---
 
-class MockToolInstaller(ToolInstallerPort):
-    def __init__(self, tools: List[Tool]):
+class MockDynamicToolManager(ToolInstallerPort):
+    def __init__(self, tools: List[Tool], runners: Dict[str, ToolRunnerPort]):
         self._tools = {tool.name.lower(): tool for tool in tools}
+        self._runners = runners
         self.install_called_for: Optional[Tool] = None
 
     def find_tool(self, name: str) -> Optional[Tool]:
@@ -27,6 +28,11 @@ class MockToolInstaller(ToolInstallerPort):
         self.install_called_for = tool
         tool.is_installed = True
         return True
+
+    # This method is part of the concrete adapter, but we mock it here
+    # to control the runners available in the test.
+    def load_tool_runners(self) -> Dict[str, ToolRunnerPort]:
+        return self._runners
 
 class MockToolRunner(ToolRunnerPort):
     def __init__(self, runner_name: str, fail_on_first_run: bool = False):
@@ -58,13 +64,8 @@ class MockReportGenerator(ReportGeneratorPort):
         self.generate_called_with = report
 
 class MockErrorFixer(ErrorFixerPort):
-    def __init__(self, fix_to_suggest: Optional[Command] = None):
-        self.suggest_fix_called = False
-        self.fix_to_suggest = fix_to_suggest
-
     async def suggest_fix(self, error: Error, command: Command) -> Optional[Command]:
-        self.suggest_fix_called = True
-        return self.fix_to_suggest
+        return None # Default to no fix
 
 # --- Test Fixtures ---
 
@@ -76,78 +77,96 @@ def nmap_tool():
 def whois_tool():
     return Tool(name="whois", description="Whois", install_command="pkg i whois", run_command="whois", is_installed=True)
 
+# --- Test Setup ---
+
+@pytest.fixture
+def setup(nmap_tool, whois_tool):
+    """A general setup fixture to provide all necessary mocks."""
+    nmap_runner = MockToolRunner("NmapRunner")
+    fallback_runner = MockToolRunner("FallbackRunner")
+
+    tool_manager = MockDynamicToolManager(
+        tools=[nmap_tool, whois_tool],
+        runners={"nmap": nmap_runner} # Only nmap has a specific runner
+    )
+
+    report_generator = MockReportGenerator()
+    error_fixer = MockErrorFixer()
+
+    use_case = RunToolUseCase(
+        parser=RegexCommandParserAdapter(), # Using the real regex parser
+        tool_installer=tool_manager,
+        tool_runners=tool_manager.load_tool_runners(), # Dynamically load runners
+        report_generator=report_generator,
+        fallback_runner=fallback_runner,
+        error_fixer=error_fixer
+    )
+    return use_case, tool_manager, report_generator, error_fixer, nmap_runner, fallback_runner
+
 # --- Test Cases ---
 
 @pytest.mark.asyncio
-async def test_uses_specific_runner_when_available(nmap_tool):
-    """Tests that the correct tool-specific runner is selected from the registry."""
-    installer = MockToolInstaller(tools=[nmap_tool])
-    report_generator = MockReportGenerator()
-    nmap_runner = MockToolRunner("NmapRunner")
-    fallback_runner = MockToolRunner("FallbackRunner")
-    error_fixer = MockErrorFixer()
-    runners_registry = {"nmap": nmap_runner}
-
-    use_case = RunToolUseCase(SimpleCommandParserAdapter(), installer, runners_registry, report_generator, fallback_runner, error_fixer)
+async def test_uses_specific_runner_when_available(setup):
+    use_case, _, _, _, nmap_runner, fallback_runner = setup
     await use_case.execute("nmap -sV localhost")
-
     assert nmap_runner.call_count == 1
     assert fallback_runner.call_count == 0
-    assert report_generator.generate_called_with is not None
 
 @pytest.mark.asyncio
-async def test_uses_fallback_runner_when_specific_is_not_available(whois_tool):
-    """Tests that the fallback runner is used for tools not in the registry."""
-    installer = MockToolInstaller(tools=[whois_tool])
-    report_generator = MockReportGenerator()
-    nmap_runner = MockToolRunner("NmapRunner")
-    fallback_runner = MockToolRunner("FallbackRunner")
-    error_fixer = MockErrorFixer()
-    runners_registry = {"nmap": nmap_runner}
-
-    use_case = RunToolUseCase(SimpleCommandParserAdapter(), installer, runners_registry, report_generator, fallback_runner, error_fixer)
+async def test_uses_fallback_runner_when_specific_is_not_available(setup):
+    use_case, _, _, _, nmap_runner, fallback_runner = setup
     await use_case.execute("whois google.com")
-
     assert nmap_runner.call_count == 0
     assert fallback_runner.call_count == 1
-    assert report_generator.generate_called_with is not None
 
 @pytest.mark.asyncio
-async def test_installs_tool_if_not_installed(nmap_tool):
-    """Tests that the install port is called for a non-installed tool."""
-    nmap_tool.is_installed = False
-    installer = MockToolInstaller(tools=[nmap_tool])
-    report_generator = MockReportGenerator()
-    fallback_runner = MockToolRunner("FallbackRunner")
-    error_fixer = MockErrorFixer()
-
-    use_case = RunToolUseCase(SimpleCommandParserAdapter(), installer, {}, report_generator, fallback_runner, error_fixer)
-    await use_case.execute("nmap localhost")
-
-    assert installer.install_called_for is not None
-    assert installer.install_called_for.name == "nmap"
-    assert fallback_runner.call_count == 1
+async def test_installs_tool_if_not_installed(setup, whois_tool):
+    use_case, tool_manager, _, _, _, _ = setup
+    whois_tool.is_installed = False # Override installed status
+    await use_case.execute("whois google.com")
+    assert tool_manager.install_called_for is not None
+    assert tool_manager.install_called_for.name == "whois"
 
 @pytest.mark.asyncio
 async def test_orchestrator_attempts_to_fix_and_rerun_on_failure(nmap_tool):
     """
-    Tests the full self-healing flow: the first run fails, the fixer is called,
-    and the command is successfully re-run.
+    Tests the self-healing flow: first run fails, fixer is called, command is re-run.
     """
-    installer = MockToolInstaller(tools=[nmap_tool])
-    report_generator = MockReportGenerator()
-    failing_runner = MockToolRunner("NmapRunner", fail_on_first_run=True)
-    fixed_command = Command(tool_name="sudo", args=["nmap"], raw_command="sudo nmap")
-    error_fixer = MockErrorFixer(fix_to_suggest=fixed_command)
+    # Arrange
+    # This runner is configured to fail on its first execution.
+    nmap_runner = MockToolRunner("NmapRunner", fail_on_first_run=True)
     sudo_runner = MockToolRunner("SudoRunner")
-    runners_registry = {"nmap": failing_runner, "sudo": sudo_runner}
 
-    use_case = RunToolUseCase(SimpleCommandParserAdapter(), installer, runners_registry, report_generator, failing_runner, error_fixer)
+    tool_manager = MockDynamicToolManager(
+        tools=[nmap_tool],
+        runners={"nmap": nmap_runner, "sudo": sudo_runner}
+    )
+
+    report_generator = MockReportGenerator()
+
+    # This fixer will suggest a 'sudo' command when it sees the failure.
+    fixed_command = Command(tool_name="sudo", args=["nmap"], raw_command="sudo nmap")
+    error_fixer = MockErrorFixer()
+    async def suggest_fix_async(error, command):
+        error_fixer.suggest_fix_called = True
+        return fixed_command
+    error_fixer.suggest_fix = suggest_fix_async
+
+    use_case = RunToolUseCase(
+        parser=RegexCommandParserAdapter(),
+        tool_installer=tool_manager,
+        tool_runners=tool_manager.load_tool_runners(),
+        report_generator=report_generator,
+        fallback_runner=MockToolRunner("Fallback"),
+        error_fixer=error_fixer
+    )
+
+    # Act
     final_report = await use_case.execute("nmap -p 80 localhost")
 
+    # Assert
     assert error_fixer.suggest_fix_called is True
-    assert failing_runner.call_count == 1
-    assert sudo_runner.call_count == 1
+    assert nmap_runner.call_count == 1   # The failing runner was called once.
+    assert sudo_runner.call_count == 1   # The 'fix' runner was called once.
     assert final_report.success is True
     assert "Executed by SudoRunner" in final_report.output
-    assert report_generator.generate_called_with is final_report

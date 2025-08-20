@@ -10,6 +10,7 @@ class Tool(BaseModel):
     install_command: str = Field(..., description="The shell command to install the tool.")
     run_command: str = Field(..., description="The base command to execute the tool (e.g., 'nmap').")
     is_installed: bool = Field(False, description="Whether the tool is currently installed.")
+    adapter_class: Optional[str] = Field(None, description="The full import path to the tool's specific adapter class.")
 
 class Command(BaseModel):
     """

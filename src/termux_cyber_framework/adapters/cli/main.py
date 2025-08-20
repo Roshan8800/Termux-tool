@@ -2,10 +2,9 @@ import asyncio
 import typer
 import os
 from termux_cyber_framework.core.use_cases.run_tool_use_case import RunToolUseCase
-from termux_cyber_framework.adapters.command_parser.simple_parser import SimpleCommandParserAdapter
-from termux_cyber_framework.adapters.tool_installer.local_tool_installer import LocalToolInstallerAdapter
+from termux_cyber_framework.adapters.command_parser.regex_parser import RegexCommandParserAdapter
+from termux_cyber_framework.adapters.tool_installer.dynamic_tool_manager import DynamicToolManagerAdapter
 from termux_cyber_framework.adapters.tool_runner.generic_tool_runner import GenericToolRunnerAdapter
-from termux_cyber_framework.adapters.tool_runner.nmap_adapter import NmapAdapter
 from termux_cyber_framework.adapters.report_generator.console_report_generator import ConsoleReportGenerator
 from termux_cyber_framework.adapters.error_fixer.simple_ai_fixer import SimpleAiFixerAdapter
 
@@ -25,26 +24,27 @@ def build_use_case() -> RunToolUseCase:
         base_dir, "..", "tool_installer", "tools.json"
     )
 
-    parser = SimpleCommandParserAdapter()
-    tool_installer = LocalToolInstallerAdapter(manifest_path)
+    # The new dynamic manager for tools and adapters
+    tool_manager = DynamicToolManagerAdapter(manifest_path)
+
+    # The manager now dynamically loads the runners from the manifest
+    tool_runners = tool_manager.load_tool_runners()
+
+    # Other adapters
+    parser = RegexCommandParserAdapter() # Using the new regex parser
     report_generator = ConsoleReportGenerator()
-    error_fixer = SimpleAiFixerAdapter() # New adapter
-
-    tool_runners = {
-        "nmap": NmapAdapter()
-    }
-
+    error_fixer = SimpleAiFixerAdapter()
     fallback_runner = GenericToolRunnerAdapter()
 
     # --- Use Case Construction ---
 
     return RunToolUseCase(
         parser=parser,
-        tool_installer=tool_installer,
+        tool_installer=tool_manager, # The manager also serves as the installer
         tool_runners=tool_runners,
         report_generator=report_generator,
         fallback_runner=fallback_runner,
-        error_fixer=error_fixer # New dependency
+        error_fixer=error_fixer
     )
 
 @app.command()
