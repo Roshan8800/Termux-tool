@@ -1,91 +1,37 @@
-import subprocess
-import os
-from datetime import datetime
-from termux_cyber_framework.core.domain.models import Command, Tool, ExecutionResult, Error
-from termux_cyber_framework.core.use_cases.ports import ToolRunnerPort
-from termux_cyber_framework.core.command_runner import CommandRunner
+import re
+from .generic_runner import GenericRunner
+from termux_cyber_framework.core.domain.models import Command, Tool, ExecutionResult
 
-class SqlmapAdapter(ToolRunnerPort):
+class SqlmapAdapter(GenericRunner):
     """
     A specific ToolRunnerPort implementation for the Sqlmap tool.
     """
-    def __init__(self, command_runner: CommandRunner = None, reports_dir="reports"):
-        self._command_runner = command_runner or CommandRunner()
-        self.reports_dir = reports_dir
+    def _parse_output(self, output: str) -> list:
+        findings = []
+        # Example parsing logic, can be expanded
+        for line in output.splitlines():
+            if "parameter" in line and "vulnerable" in line:
+                match = re.search(r"parameter '(.+?)' is vulnerable\..+?the back-end DBMS is (.+)", line)
+                if not match:
+                    match = re.search(r"parameter '(.+?)' is vulnerable. a (.+?) database", line)
+                if match:
+                    findings.append({
+                        "type": "SQL_INJECTION",
+                        "parameter": match.group(1),
+                        "dbms": match.group(2)
+                    })
+        return findings
 
     def run(self, tool: Tool, command: Command) -> ExecutionResult:
-        full_command = [tool.run_command] + command.args
+        args = command.args
+        if "--batch" not in args:
+            args.append("--batch")
+        if "--threads" not in args:
+            args.extend(["--threads", "1"])
 
-        now = datetime.now()
-        date_str = now.strftime("%Y-%m-%d")
-        time_str = now.strftime("%H-%M-%S")
-        output_log_dir = os.path.join(self.reports_dir, date_str, tool.name)
-        if not os.path.exists(output_log_dir):
-            os.makedirs(output_log_dir)
-        output_log_file = os.path.join(output_log_dir, f"{time_str}.log")
+        result = super().run(tool, command)
 
-        start_time = datetime.now()
+        if result.success:
+            result.findings = self._parse_output(result.output)
 
-        try:
-            process = self._command_runner.run(
-                full_command,
-                timeout=600, # 10-minute timeout
-                output_log_file=output_log_file
-            )
-
-            end_time = datetime.now()
-
-            if process.returncode == 0:
-                return ExecutionResult(
-                    command=command,
-                    success=True,
-                    output=process.stdout,
-                    error=None,
-                    start_time=start_time,
-                    end_time=end_time,
-                    pid=process.pid,
-                    output_log_file=output_log_file
-                )
-            else:
-                error = Error(
-                    error_code=process.returncode,
-                    message=process.stderr or process.stdout
-                )
-                return ExecutionResult(
-                    command=command,
-                    success=False,
-                    output=process.stdout,
-                    error=error,
-                    start_time=start_time,
-                    end_time=end_time,
-                    pid=process.pid,
-                    output_log_file=output_log_file
-                )
-
-        except FileNotFoundError:
-            end_time = datetime.now()
-            error = Error(message="Command 'sqlmap' not found. Is it installed and in PATH?")
-            return ExecutionResult(
-                command=command,
-                success=False,
-                output="",
-                error=error,
-                start_time=start_time,
-                end_time=end_time,
-                output_log_file=output_log_file
-            )
-        except subprocess.TimeoutExpired as e:
-            end_time = datetime.now()
-            error_message = f"Sqlmap command timed out after {e.timeout} seconds."
-            if e.stdout:
-                error_message += f"\nOutput:\n{e.stdout}"
-            error = Error(message=error_message)
-            return ExecutionResult(
-                command=command,
-                success=False,
-                output=e.stdout or "",
-                error=error,
-                start_time=start_time,
-                end_time=end_time,
-                output_log_file=output_log_file
-            )
+        return result

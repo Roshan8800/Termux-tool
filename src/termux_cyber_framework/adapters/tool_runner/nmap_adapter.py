@@ -1,91 +1,55 @@
-import subprocess
-import os
-from datetime import datetime
-from termux_cyber_framework.core.domain.models import Command, Tool, ExecutionResult, Error
-from termux_cyber_framework.core.use_cases.ports import ToolRunnerPort
-from termux_cyber_framework.core.command_runner import CommandRunner
+import ipaddress
+from .generic_runner import GenericRunner
+from termux_cyber_framework.core.domain.models import Command, Tool, ExecutionResult
 
-class NmapAdapter(ToolRunnerPort):
+class NmapAdapter(GenericRunner):
     """
     A specific ToolRunnerPort implementation for the Nmap tool.
     """
-    def __init__(self, command_runner: CommandRunner = None, reports_dir="reports"):
-        self._command_runner = command_runner or CommandRunner()
-        self.reports_dir = reports_dir
+    def _is_cidr(self, s: str) -> bool:
+        try:
+            ipaddress.ip_network(s, strict=False)
+            return True
+        except ValueError:
+            return False
 
     def run(self, tool: Tool, command: Command) -> ExecutionResult:
-        full_command = [tool.run_command] + command.args
+        args = command.args
+        if "-T3" not in args:
+            args.append("-T3")
+        if "-sV" not in args:
+            args.append("-sV")
 
-        now = datetime.now()
-        date_str = now.strftime("%Y-%m-%d")
-        time_str = now.strftime("%H-%M-%S")
-        output_log_dir = os.path.join(self.reports_dir, date_str, tool.name)
-        if not os.path.exists(output_log_dir):
-            os.makedirs(output_log_dir)
-        output_log_file = os.path.join(output_log_dir, f"{time_str}.log")
+        targets = [arg for arg in args if not arg.startswith("-")]
+        non_targets = [arg for arg in args if arg.startswith("-")]
 
-        start_time = datetime.now()
+        if any(self._is_cidr(target) for target in targets):
+            cidr_target = next(target for target in targets if self._is_cidr(target))
+            network = ipaddress.ip_network(cidr_target)
+            hosts = list(network.hosts())
 
-        try:
-            process = self._command_runner.run(
-                full_command,
-                timeout=600, # 10-minute timeout for potentially long scans
-                output_log_file=output_log_file
-            )
+            results = []
+            for host in hosts:
+                new_args = non_targets + [str(host)]
+                new_command = Command(tool_name=command.tool_name, args=new_args, raw_command=f"{command.tool_name} {' '.join(new_args)}")
+                result = super().run(tool, new_command)
+                results.append(result)
 
-            end_time = datetime.now()
+            if results:
+                summary_output = "\n".join([r.output for r in results])
+                summary_findings = []
+                for r in results:
+                    if r.findings:
+                        summary_findings.extend(r.findings)
 
-            if process.returncode == 0:
                 return ExecutionResult(
                     command=command,
-                    success=True,
-                    output=process.stdout,
-                    error=None,
-                    start_time=start_time,
-                    end_time=end_time,
-                    pid=process.pid,
-                    output_log_file=output_log_file
-                )
-            else:
-                error = Error(
-                    error_code=process.returncode,
-                    message=process.stderr or process.stdout
-                )
-                return ExecutionResult(
-                    command=command,
-                    success=False,
-                    output=process.stdout,
-                    error=error,
-                    start_time=start_time,
-                    end_time=end_time,
-                    pid=process.pid,
-                    output_log_file=output_log_file
+                    success=all(r.success for r in results),
+                    output=summary_output,
+                    error=results[-1].error if not all(r.success for r in results) else None,
+                    start_time=results[0].start_time,
+                    end_time=results[-1].end_time,
+                    findings=summary_findings
                 )
 
-        except FileNotFoundError:
-            end_time = datetime.now()
-            error = Error(message="Command 'nmap' not found. Is it installed and in PATH?")
-            return ExecutionResult(
-                command=command,
-                success=False,
-                output="",
-                error=error,
-                start_time=start_time,
-                end_time=end_time,
-                output_log_file=output_log_file
-            )
-        except subprocess.TimeoutExpired as e:
-            end_time = datetime.now()
-            error_message = f"Nmap command timed out after {e.timeout} seconds."
-            if e.stdout:
-                error_message += f"\nOutput:\n{e.stdout}"
-            error = Error(message=error_message)
-            return ExecutionResult(
-                command=command,
-                success=False,
-                output=e.stdout or "",
-                error=error,
-                start_time=start_time,
-                end_time=end_time,
-                output_log_file=output_log_file
-            )
+        return super().run(tool, command)

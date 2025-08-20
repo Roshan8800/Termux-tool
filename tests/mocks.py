@@ -8,11 +8,12 @@ class MockCommandRunner:
     """
     def __init__(self, mock_results: Optional[dict] = None):
         self.mock_results = mock_results or {}
+        self.call_count = 0
+        self.last_command = None
 
     def run(self, command: List[str], **kwargs):
-        """
-        Mocks the run method.
-        """
+        self.call_count += 1
+        self.last_command = command
         if isinstance(command, list):
             command_str = " ".join(command)
         else:

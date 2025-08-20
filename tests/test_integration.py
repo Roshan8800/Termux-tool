@@ -87,7 +87,7 @@ async def test_end_to_end_git_install_command(cleanup_files, cleanup_cloned_tool
     # Arrange
     mock_runner = MockCommandRunner({
         "git clone https://github.com/sqlmapproject/sqlmap.git tools/sqlmap": {"returncode": 0},
-        "python3 tools/sqlmap/sqlmap.py --version": {"returncode": 0, "stdout": "1.8.3"}
+        "python3 tools/sqlmap/sqlmap.py --version --batch --threads 1": {"returncode": 0, "stdout": "1.8.3"}
     })
     config = Config(allow_system_install=True)
     use_case = build_use_case(command_runner=mock_runner, config=config)
