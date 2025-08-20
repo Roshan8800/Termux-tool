@@ -65,19 +65,35 @@ class RunToolUseCase:
 
         if not self.tool_installer.check_if_installed(tool) and command.tool_name != 'sudo':
              self.logger.log(f"Tool '{tool.name}' is not installed. Attempting installation.")
-             try:
-                 if not self.tool_installer.install_tool(tool, self.config):
-                     self.logger.log(f"Failed to install tool '{tool.name}'.", level=LogLevel.ERROR)
-                     raise RuntimeError(f"Failed to install tool '{tool.name}'.")
-             except PermissionError as e:
-                 self.logger.log(f"Installation failed: {e}", level=LogLevel.ERROR)
-                 raise RuntimeError(str(e)) from e
-             self.logger.log(f"Tool '{tool.name}' installed successfully.")
+             if not self.config.dry_run:
+                 try:
+                     if not self.tool_installer.install_tool(tool, self.config):
+                         self.logger.log(f"Failed to install tool '{tool.name}'.", level=LogLevel.ERROR)
+                         raise RuntimeError(f"Failed to install tool '{tool.name}'.")
+                 except PermissionError as e:
+                     self.logger.log(f"Installation failed: {e}", level=LogLevel.ERROR)
+                     raise RuntimeError(str(e)) from e
+                 self.logger.log(f"Tool '{tool.name}' installed successfully.")
+             else:
+                self.logger.log(f"Dry run: Skipping installation of tool '{tool.name}'.", level=LogLevel.INFO)
 
         runner = self.tool_runners.get(tool.name.lower(), self.fallback_runner)
         self.logger.log(f"Using runner '{runner.__class__.__name__}' for command '{command.tool_name}'.")
 
         paths = self.report_generator.prepare_report_paths(command.tool_name)
+
+        if self.config.dry_run:
+            self.logger.log(f"Dry run: Skipping execution of command '{command.raw_command}'.", level=LogLevel.INFO)
+            now = datetime.now()
+            return ExecutionResult(
+                command=command,
+                success=True,
+                output="Dry run: command not executed.",
+                error=None,
+                start_time=now,
+                end_time=now,
+                output_log_file=str(paths.output_log_file)
+            )
 
         result = runner.run(tool, command, paths)
         result.output_log_file = str(paths.output_log_file) # Set the log file path in the result
@@ -95,7 +111,7 @@ class RunToolUseCase:
             command = await self.parser.parse_command(user_input)
             self.logger.log(f"Parsed command: Tool='{command.tool_name}', Args={command.args}", level=LogLevel.DEBUG)
 
-            if not self.consent_service.get_consent(command):
+            if not self.config.dry_run and not self.consent_service.get_consent(command):
                 self.logger.log("User did not provide consent. Aborting.", level=LogLevel.WARNING)
                 error = Error(message="User did not provide consent.")
                 now = datetime.now()
@@ -137,7 +153,7 @@ class RunToolUseCase:
 
         if not result.success:
             self.logger.log("Command failed, running doctor.", level=LogLevel.INFO)
-            fixes = self.doctor.detect_and_fix(result)
+            fixes = await self.doctor.detect_and_fix(result)
             if fixes:
                 self.logger.log(f"Doctor found {len(fixes)} potential fixes.", level=LogLevel.INFO)
                 # For now, we just log the fixes. A more advanced implementation

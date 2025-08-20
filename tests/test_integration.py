@@ -176,3 +176,23 @@ async def test_install_logging(cleanup_files):
         log_content = f.read()
     assert "installing whois..." in log_content
     assert "some warning" in log_content
+
+
+@pytest.mark.asyncio
+async def test_dry_run_flag(cleanup_files):
+    """
+    Tests that the --dry-run flag prevents execution.
+    """
+    # Arrange
+    mock_runner = MockCommandRunner()
+    config = Config(dry_run=True)
+    use_case = build_use_case(command_runner=mock_runner, config=config)
+    command = "whois google.com"
+
+    # Act
+    result = await use_case.execute(command)
+
+    # Assert
+    assert result.success is True
+    assert "Dry run: command not executed" in result.output
+    assert mock_runner.call_count == 0

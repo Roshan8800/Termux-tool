@@ -27,7 +27,8 @@ def doctor_rules(tmp_path):
         json.dump(rules, f)
     return str(rules_path)
 
-def test_doctor_detects_and_applies_fix(doctor_rules):
+@pytest.mark.asyncio
+async def test_doctor_detects_and_applies_fix(doctor_rules):
     # Arrange
     error_output = "fatal error: openssl/ssl.h: No such file or directory"
     result = ExecutionResult(
@@ -42,7 +43,7 @@ def test_doctor_detects_and_applies_fix(doctor_rules):
     adapter = RegexDoctorAdapter(rules_path=doctor_rules, command_runner=mock_runner)
 
     # Act
-    fixes = adapter.detect_and_fix(result)
+    fixes = await adapter.detect_and_fix(result)
 
     # Assert
     assert len(fixes) == 1
@@ -50,7 +51,8 @@ def test_doctor_detects_and_applies_fix(doctor_rules):
     assert fixes[0]["status"] == "applied"
     assert mock_runner.last_command == ["pkg", "install", "-y", "openssl"]
 
-def test_doctor_detects_and_proposes_fix(doctor_rules):
+@pytest.mark.asyncio
+async def test_doctor_detects_and_proposes_fix(doctor_rules):
     # Arrange
     error_output = "ModuleNotFoundError: No module named 'requests'"
     result = ExecutionResult(
@@ -65,7 +67,7 @@ def test_doctor_detects_and_proposes_fix(doctor_rules):
     adapter = RegexDoctorAdapter(rules_path=doctor_rules, command_runner=mock_runner)
 
     # Act
-    fixes = adapter.detect_and_fix(result)
+    fixes = await adapter.detect_and_fix(result)
 
     # Assert
     assert len(fixes) == 1
@@ -73,7 +75,8 @@ def test_doctor_detects_and_proposes_fix(doctor_rules):
     assert fixes[0]["status"] == "pending_user_confirm"
     assert mock_runner.call_count == 0
 
-def test_doctor_no_match(doctor_rules):
+@pytest.mark.asyncio
+async def test_doctor_no_match(doctor_rules):
     # Arrange
     error_output = "Some other error"
     result = ExecutionResult(
@@ -88,7 +91,7 @@ def test_doctor_no_match(doctor_rules):
     adapter = RegexDoctorAdapter(rules_path=doctor_rules, command_runner=mock_runner)
 
     # Act
-    fixes = adapter.detect_and_fix(result)
+    fixes = await adapter.detect_and_fix(result)
 
     # Assert
     assert len(fixes) == 0
@@ -116,7 +119,8 @@ def doctor_rules_multiple(tmp_path):
         json.dump(rules, f)
     return str(rules_path)
 
-def test_doctor_multiple_matches(doctor_rules_multiple):
+@pytest.mark.asyncio
+async def test_doctor_multiple_matches(doctor_rules_multiple):
     # Arrange
     error_output = "fatal error: openssl/ssl.h: No such file or directory\nSome other error"
     result = ExecutionResult(
@@ -131,14 +135,15 @@ def test_doctor_multiple_matches(doctor_rules_multiple):
     adapter = RegexDoctorAdapter(rules_path=doctor_rules_multiple, command_runner=mock_runner)
 
     # Act
-    fixes = adapter.detect_and_fix(result)
+    fixes = await adapter.detect_and_fix(result)
 
     # Assert
     assert len(fixes) == 2
     assert fixes[0]["id"] == "openssl_missing"
     assert fixes[1]["id"] == "some_other_error"
 
-def test_doctor_match_in_output(doctor_rules):
+@pytest.mark.asyncio
+async def test_doctor_match_in_output(doctor_rules):
     # Arrange
     output = "ModuleNotFoundError: No module named 'requests'"
     result = ExecutionResult(
@@ -153,7 +158,7 @@ def test_doctor_match_in_output(doctor_rules):
     adapter = RegexDoctorAdapter(rules_path=doctor_rules, command_runner=mock_runner)
 
     # Act
-    fixes = adapter.detect_and_fix(result)
+    fixes = await adapter.detect_and_fix(result)
 
     # Assert
     assert len(fixes) == 1

@@ -92,13 +92,15 @@ def build_use_case(command_runner: Optional[CommandRunner] = None, config: Optio
 
 @app.command()
 def run(
-    command: str = typer.Argument(..., help="The command to run in natural language.")
+    command: str = typer.Argument(..., help="The command to run in natural language."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Perform a dry run without executing any commands.")
 ):
     """
     Runs a command by parsing it, ensuring the tool is installed,
     and executing it using the best available runner.
     """
-    use_case = build_use_case()
+    config = Config(dry_run=dry_run)
+    use_case = build_use_case(config=config)
 
     async def main():
         await use_case.execute(command)

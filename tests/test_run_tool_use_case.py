@@ -21,7 +21,7 @@ from tests.mocks import MockAuditLogger
 # --- Mock Adapters for Testing ---
 
 class MockDoctor(DoctorPort):
-    def detect_and_fix(self, result: ExecutionResult) -> List[dict]:
+    async def detect_and_fix(self, result: ExecutionResult) -> List[dict]:
         return []
 
 class MockConsentService(ConsentPort):
@@ -170,6 +170,17 @@ async def test_installs_tool_if_not_installed(setup, whois_tool):
     assert tool_manager.install_called_for.name == "whois"
 
 @pytest.mark.asyncio
+async def test_install_tool_fails(setup, whois_tool):
+    use_case, tool_manager, _, _, _, _ = setup
+    whois_tool.is_installed = False # Override installed status
+    tool_manager.install_tool = lambda tool, config: False
+
+    result = await use_case.execute("whois google.com")
+
+    assert result.success is False
+    assert "Failed to install tool" in result.error.message
+
+@pytest.mark.asyncio
 async def test_orchestrator_attempts_to_fix_and_rerun_on_failure(nmap_tool):
     """
     Tests the self-healing flow: first run fails, fixer is called, command is re-run.
@@ -221,3 +232,46 @@ async def test_orchestrator_attempts_to_fix_and_rerun_on_failure(nmap_tool):
     assert sudo_runner.call_count == 1   # The 'fix' runner was called once.
     assert final_report.success is True
     assert "Executed by SudoRunner" in final_report.output
+
+@pytest.mark.asyncio
+async def test_doctor_retry(nmap_tool):
+    """
+    Tests that the doctor is called on failure and a fix is attempted.
+    """
+    # Arrange
+    nmap_runner = MockToolRunner("NmapRunner", fail_on_first_run=True)
+    tool_manager = MockDynamicToolManager(
+        tools=[nmap_tool],
+        runners={"nmap": nmap_runner}
+    )
+    report_generator = MockReportGenerator()
+    error_fixer = MockErrorFixer()
+    doctor = MockDoctor()
+    async def detect_and_fix_async(result):
+        return [{"id": "test_fix", "commands": ["echo hello"]}]
+    doctor.detect_and_fix = detect_and_fix_async
+
+    config = Config(allow_system_install=True)
+    audit_logger = MockAuditLogger()
+    consent_service = MockConsentService()
+    use_case = RunToolUseCase(
+        parser=RegexCommandParserAdapter(),
+        tool_installer=tool_manager,
+        tool_runners=tool_manager.load_tool_runners(),
+        report_generator=report_generator,
+        fallback_runner=MockToolRunner("Fallback"),
+        error_fixer=error_fixer,
+        logger=MockLogger(),
+        config=config,
+        doctor=doctor,
+        audit_logger=audit_logger,
+        consent_service=consent_service
+    )
+
+    # Act
+    final_report = await use_case.execute("nmap -p 80 localhost")
+
+    # Assert
+    assert nmap_runner.call_count == 1
+    # This is a simplified test. A more advanced test would check if the fix was applied.
+    assert final_report.success is False

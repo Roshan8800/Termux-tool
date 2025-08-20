@@ -23,7 +23,7 @@ class RegexDoctorAdapter(DoctorPort):
         with open(path, 'r') as f:
             return json.load(f)
 
-    def detect_and_fix(self, result: ExecutionResult) -> List[dict]:
+    async def detect_and_fix(self, result: ExecutionResult) -> List[dict]:
         fixes = []
         for rule in self.rules:
             if re.search(rule["pattern"], result.output, re.IGNORECASE) or \
