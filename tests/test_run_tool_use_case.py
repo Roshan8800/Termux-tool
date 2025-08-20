@@ -3,13 +3,15 @@ from typing import Optional, List, Dict
 from datetime import datetime
 from termux_cyber_framework.core.domain.models import Command, Tool, ExecutionResult, Error, InstallInfo
 from termux_cyber_framework.core.domain.config import Config
+from termux_cyber_framework.core.domain.run_paths import RunPaths
 from termux_cyber_framework.core.use_cases.ports import (
     ToolInstallerPort,
     ToolRunnerPort,
     ReportGeneratorPort,
     ErrorFixerPort,
     LoggerPort,
-    DoctorPort
+    DoctorPort,
+    AuditLoggerPort
 )
 from termux_cyber_framework.core.use_cases.run_tool_use_case import RunToolUseCase
 from termux_cyber_framework.adapters.command_parser.regex_parser import RegexCommandParserAdapter
@@ -19,6 +21,10 @@ from termux_cyber_framework.adapters.command_parser.regex_parser import RegexCom
 class MockDoctor(DoctorPort):
     def detect_and_fix(self, result: ExecutionResult) -> List[dict]:
         return []
+
+class MockAuditLogger(AuditLoggerPort):
+    def append(self, event: dict) -> None:
+        pass
 
 class MockLogger(LoggerPort):
     def log(self, message: str, level: str = "INFO"):
@@ -52,7 +58,7 @@ class MockToolRunner(ToolRunnerPort):
         self.call_count = 0
         self.fail_on_first_run = fail_on_first_run
 
-    def run(self, tool: Tool, command: Command) -> ExecutionResult:
+    def run(self, tool: Tool, command: Command, paths: RunPaths) -> ExecutionResult:
         self.call_count += 1
         now = datetime.now()
         if self.fail_on_first_run and self.call_count == 1:
@@ -62,7 +68,8 @@ class MockToolRunner(ToolRunnerPort):
                 output="Permission denied",
                 error=Error(message="Permission denied"),
                 start_time=now,
-                end_time=now
+                end_time=now,
+                output_log_file=str(paths.output_log_file)
             )
         return ExecutionResult(
             command=command,
@@ -70,15 +77,16 @@ class MockToolRunner(ToolRunnerPort):
             output=f"Executed by {self.runner_name}",
             error=None,
             start_time=now,
-            end_time=now
+            end_time=now,
+            output_log_file=str(paths.output_log_file)
         )
 
 class MockReportGenerator(ReportGeneratorPort):
-    def __init__(self):
-        self.generate_called_with: Optional[ExecutionResult] = None
+    def prepare_report_paths(self, tool_name: str) -> RunPaths:
+        return RunPaths(summary_file="summary.json", output_log_file="run.log")
 
-    def generate(self, result: ExecutionResult) -> None:
-        self.generate_called_with = result
+    def generate(self, result: ExecutionResult, paths: RunPaths) -> None:
+        pass
 
 class MockErrorFixer(ErrorFixerPort):
     async def suggest_fix(self, error: Error, command: Command) -> Optional[Command]:
@@ -115,6 +123,7 @@ def setup(nmap_tool, whois_tool):
 
     config = Config(allow_system_install=True)
     doctor = MockDoctor()
+    audit_logger = MockAuditLogger()
     use_case = RunToolUseCase(
         parser=RegexCommandParserAdapter(), # Using the real regex parser
         tool_installer=tool_manager,
@@ -124,7 +133,8 @@ def setup(nmap_tool, whois_tool):
         error_fixer=error_fixer,
         logger=logger,
         config=config,
-        doctor=doctor
+        doctor=doctor,
+        audit_logger=audit_logger
     )
     return use_case, tool_manager, report_generator, error_fixer, nmap_runner, fallback_runner
 
@@ -179,6 +189,7 @@ async def test_orchestrator_attempts_to_fix_and_rerun_on_failure(nmap_tool):
 
     config = Config(allow_system_install=True)
     doctor = MockDoctor()
+    audit_logger = MockAuditLogger()
     use_case = RunToolUseCase(
         parser=RegexCommandParserAdapter(),
         tool_installer=tool_manager,
@@ -188,7 +199,8 @@ async def test_orchestrator_attempts_to_fix_and_rerun_on_failure(nmap_tool):
         error_fixer=error_fixer,
         logger=MockLogger(),
         config=config,
-        doctor=doctor
+        doctor=doctor,
+        audit_logger=audit_logger
     )
 
     # Act

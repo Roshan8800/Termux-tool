@@ -4,6 +4,7 @@ from termux_cyber_framework.adapters.tool_runner.nmap_adapter import NmapAdapter
 from termux_cyber_framework.adapters.tool_runner.sqlmap_adapter import SqlmapAdapter
 from termux_cyber_framework.core.domain.models import Tool, Command, InstallInfo
 from termux_cyber_framework.core.domain.config import Config
+from termux_cyber_framework.core.domain.run_paths import RunPaths
 from tests.mocks import MockCommandRunner
 
 # --- Fixtures ---
@@ -25,7 +26,7 @@ def sqlmap_tool():
 
 # --- GenericRunner Tests ---
 
-def test_generic_runner_success(generic_tool):
+def test_generic_runner_success(generic_tool, tmp_path):
     # Arrange
     command = Command(tool_name="echo", args=["hello"], raw_command="echo hello")
     mock_runner = MockCommandRunner({
@@ -34,7 +35,8 @@ def test_generic_runner_success(generic_tool):
     adapter = GenericRunner(command_runner=mock_runner)
 
     # Act
-    result = adapter.run(generic_tool, command)
+    paths = RunPaths(summary_file=tmp_path / "summary.json", output_log_file=tmp_path / "run.log")
+    result = adapter.run(generic_tool, command, paths)
 
     # Assert
     assert result.success is True
@@ -42,27 +44,29 @@ def test_generic_runner_success(generic_tool):
 
 # --- NmapAdapter Tests ---
 
-def test_nmap_adapter_adds_default_args(nmap_tool):
+def test_nmap_adapter_adds_default_args(nmap_tool, tmp_path):
     # Arrange
     command = Command(tool_name="nmap", args=["localhost"], raw_command="nmap localhost")
     mock_runner = MockCommandRunner()
     adapter = NmapAdapter(command_runner=mock_runner)
 
     # Act
-    adapter.run(nmap_tool, command)
+    paths = RunPaths(summary_file=tmp_path / "summary.json", output_log_file=tmp_path / "run.log")
+    adapter.run(nmap_tool, command, paths)
 
     # Assert
     assert "-T3" in command.args
     assert "-sV" in command.args
 
-def test_nmap_adapter_chunks_cidr(nmap_tool):
+def test_nmap_adapter_chunks_cidr(nmap_tool, tmp_path):
     # Arrange
     command = Command(tool_name="nmap", args=["192.168.1.0/30"], raw_command="nmap 192.168.1.0/30")
     mock_runner = MockCommandRunner()
     adapter = NmapAdapter(command_runner=mock_runner)
 
     # Act
-    adapter.run(nmap_tool, command)
+    paths = RunPaths(summary_file=tmp_path / "summary.json", output_log_file=tmp_path / "run.log")
+    adapter.run(nmap_tool, command, paths)
 
     # Assert
     assert mock_runner.call_count == 2 # /30 gives 2 usable hosts
@@ -70,21 +74,22 @@ def test_nmap_adapter_chunks_cidr(nmap_tool):
 
 # --- SqlmapAdapter Tests ---
 
-def test_sqlmap_adapter_adds_default_args(sqlmap_tool):
+def test_sqlmap_adapter_adds_default_args(sqlmap_tool, tmp_path):
     # Arrange
     command = Command(tool_name="sqlmap", args=["-u", "http://test.com"], raw_command="sqlmap -u http://test.com")
     mock_runner = MockCommandRunner()
     adapter = SqlmapAdapter(command_runner=mock_runner)
 
     # Act
-    adapter.run(sqlmap_tool, command)
+    paths = RunPaths(summary_file=tmp_path / "summary.json", output_log_file=tmp_path / "run.log")
+    adapter.run(sqlmap_tool, command, paths)
 
     # Assert
     assert "--batch" in command.args
     assert "--threads" in command.args
     assert "1" in command.args
 
-def test_sqlmap_adapter_parses_output(sqlmap_tool):
+def test_sqlmap_adapter_parses_output(sqlmap_tool, tmp_path):
     # Arrange
     command = Command(tool_name="sqlmap", args=["-u", "http://test.com"], raw_command="sqlmap -u http://test.com")
     output = "parameter 'id' is vulnerable. a MySQL database"
@@ -94,7 +99,8 @@ def test_sqlmap_adapter_parses_output(sqlmap_tool):
     adapter = SqlmapAdapter(command_runner=mock_runner)
 
     # Act
-    result = adapter.run(sqlmap_tool, command)
+    paths = RunPaths(summary_file=tmp_path / "summary.json", output_log_file=tmp_path / "run.log")
+    result = adapter.run(sqlmap_tool, command, paths)
 
     # Assert
     assert len(result.findings) == 1

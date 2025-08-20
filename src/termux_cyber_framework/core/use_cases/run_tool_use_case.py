@@ -2,6 +2,7 @@ from typing import Dict, Optional
 from datetime import datetime
 from termux_cyber_framework.core.domain.models import ExecutionResult, Command, Error, Tool, InstallInfo
 from termux_cyber_framework.core.domain.config import Config
+from termux_cyber_framework.core.domain.run_paths import RunPaths
 from termux_cyber_framework.core.use_cases.ports import (
     CommandParserPort,
     ToolInstallerPort,
@@ -10,6 +11,7 @@ from termux_cyber_framework.core.use_cases.ports import (
     ErrorFixerPort,
     LoggerPort,
     DoctorPort,
+    AuditLoggerPort,
     LogLevel
 )
 
@@ -30,7 +32,8 @@ class RunToolUseCase:
         error_fixer: ErrorFixerPort,
         logger: LoggerPort,
         config: Config,
-        doctor: DoctorPort
+        doctor: DoctorPort,
+        audit_logger: AuditLoggerPort
     ):
         self.parser = parser
         self.tool_installer = tool_installer
@@ -41,6 +44,7 @@ class RunToolUseCase:
         self.logger = logger
         self.config = config
         self.doctor = doctor
+        self.audit_logger = audit_logger
 
     async def _run_command_flow(self, command: Command) -> ExecutionResult:
         """Helper to run a single command and return its report."""
@@ -69,7 +73,12 @@ class RunToolUseCase:
 
         runner = self.tool_runners.get(tool.name.lower(), self.fallback_runner)
         self.logger.log(f"Using runner '{runner.__class__.__name__}' for command '{command.tool_name}'.")
-        result = runner.run(tool, command)
+
+        paths = self.report_generator.prepare_report_paths(command.tool_name)
+
+        result = runner.run(tool, command, paths)
+        result.output_log_file = str(paths.output_log_file) # Set the log file path in the result
+
         self.logger.log(f"Command execution finished. Success: {result.success}", level=LogLevel.DEBUG)
         return result
 
@@ -118,5 +127,16 @@ class RunToolUseCase:
                 # could present them to the user or attempt to re-run the command.
 
         self.logger.log("Generating report.")
-        self.report_generator.generate(result)
+        paths = self.report_generator.prepare_report_paths(result.command.tool_name)
+        self.report_generator.generate(result, paths)
+
+        self.audit_logger.append({
+            "session_id": self.config.session_id,
+            "consent_hash": self.config.consent_hash,
+            "command": result.command.raw_command,
+            "tool": result.command.tool_name,
+            "exit_code": result.error.error_code if result.error else 0,
+            "artifact_paths": [str(paths.summary_file), str(paths.output_log_file)]
+        })
+
         return result

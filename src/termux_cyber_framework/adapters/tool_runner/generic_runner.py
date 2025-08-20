@@ -1,30 +1,21 @@
 import subprocess
-import os
 from datetime import datetime
 from termux_cyber_framework.core.domain.models import Command, Tool, ExecutionResult, Error
 from termux_cyber_framework.core.use_cases.ports import ToolRunnerPort
 from termux_cyber_framework.core.command_runner import CommandRunner
+from termux_cyber_framework.core.domain.run_paths import RunPaths
 
 class GenericRunner(ToolRunnerPort):
     """
     A generic adapter that runs any tool command in the local shell.
     This serves as a fallback for tools without a specific adapter.
     """
-    def __init__(self, command_runner: CommandRunner = None, reports_dir="reports"):
+    def __init__(self, command_runner: CommandRunner = None):
         self._command_runner = command_runner or CommandRunner()
-        self.reports_dir = reports_dir
 
-    def run(self, tool: Tool, command: Command) -> ExecutionResult:
+    def run(self, tool: Tool, command: Command, paths: RunPaths) -> ExecutionResult:
         base_command_parts = tool.run_command.split()
         full_command = base_command_parts + command.args
-
-        now = datetime.now()
-        date_str = now.strftime("%Y-%m-%d")
-        time_str = now.strftime("%H-%M-%S")
-        output_log_dir = os.path.join(self.reports_dir, date_str, tool.name)
-        if not os.path.exists(output_log_dir):
-            os.makedirs(output_log_dir)
-        output_log_file = os.path.join(output_log_dir, f"{time_str}.log")
 
         start_time = datetime.now()
 
@@ -32,7 +23,7 @@ class GenericRunner(ToolRunnerPort):
             process = self._command_runner.run(
                 full_command,
                 timeout=300, # 5-minute timeout
-                output_log_file=output_log_file
+                output_log_file=str(paths.output_log_file)
             )
 
             end_time = datetime.now()
@@ -46,7 +37,7 @@ class GenericRunner(ToolRunnerPort):
                     start_time=start_time,
                     end_time=end_time,
                     pid=process.pid,
-                    output_log_file=output_log_file
+                    output_log_file=str(paths.output_log_file)
                 )
             else:
                 error = Error(
@@ -61,7 +52,7 @@ class GenericRunner(ToolRunnerPort):
                     start_time=start_time,
                     end_time=end_time,
                     pid=process.pid,
-                    output_log_file=output_log_file
+                    output_log_file=str(paths.output_log_file)
                 )
 
         except FileNotFoundError:
@@ -74,7 +65,7 @@ class GenericRunner(ToolRunnerPort):
                 error=error,
                 start_time=start_time,
                 end_time=end_time,
-                output_log_file=output_log_file
+                output_log_file=str(paths.output_log_file)
             )
         except subprocess.TimeoutExpired as e:
             end_time = datetime.now()
@@ -89,5 +80,5 @@ class GenericRunner(ToolRunnerPort):
                 error=error,
                 start_time=start_time,
                 end_time=end_time,
-                output_log_file=output_log_file
+                output_log_file=str(paths.output_log_file)
             )

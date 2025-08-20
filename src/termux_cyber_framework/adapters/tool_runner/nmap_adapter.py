@@ -1,11 +1,16 @@
 import ipaddress
 from .generic_runner import GenericRunner
 from termux_cyber_framework.core.domain.models import Command, Tool, ExecutionResult
+from termux_cyber_framework.core.domain.run_paths import RunPaths
+from termux_cyber_framework.core.command_runner import CommandRunner
 
 class NmapAdapter(GenericRunner):
     """
     A specific ToolRunnerPort implementation for the Nmap tool.
     """
+    def __init__(self, command_runner: CommandRunner = None):
+        super().__init__(command_runner)
+
     def _is_cidr(self, s: str) -> bool:
         try:
             ipaddress.ip_network(s, strict=False)
@@ -13,7 +18,7 @@ class NmapAdapter(GenericRunner):
         except ValueError:
             return False
 
-    def run(self, tool: Tool, command: Command) -> ExecutionResult:
+    def run(self, tool: Tool, command: Command, paths: RunPaths) -> ExecutionResult:
         args = command.args
         if "-T3" not in args:
             args.append("-T3")
@@ -32,7 +37,7 @@ class NmapAdapter(GenericRunner):
             for host in hosts:
                 new_args = non_targets + [str(host)]
                 new_command = Command(tool_name=command.tool_name, args=new_args, raw_command=f"{command.tool_name} {' '.join(new_args)}")
-                result = super().run(tool, new_command)
+                result = super().run(tool, new_command, paths)
                 results.append(result)
 
             if results:
@@ -52,4 +57,4 @@ class NmapAdapter(GenericRunner):
                     findings=summary_findings
                 )
 
-        return super().run(tool, command)
+        return super().run(tool, command, paths)

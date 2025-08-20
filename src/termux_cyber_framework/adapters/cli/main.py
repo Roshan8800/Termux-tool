@@ -7,7 +7,8 @@ from termux_cyber_framework.core.domain.config import Config
 from termux_cyber_framework.adapters.command_parser.ai_parser import AICommandParserAdapter
 from termux_cyber_framework.adapters.tool_installer.dynamic_tool_manager import DynamicToolManagerAdapter
 from termux_cyber_framework.adapters.tool_runner.generic_runner import GenericRunner
-from termux_cyber_framework.adapters.report_generator.file_report_generator import FileReportGenerator
+from termux_cyber_framework.adapters.report_generator.json_reporter import JsonReporter
+from termux_cyber_framework.adapters.audit_logger.file_audit_logger import FileAuditLogger
 from termux_cyber_framework.adapters.error_fixer.simple_ai_fixer import SimpleAiFixerAdapter
 from termux_cyber_framework.adapters.logger.file_logger import FileLoggerAdapter
 from termux_cyber_framework.adapters.doctor.regex_doctor import RegexDoctorAdapter
@@ -45,7 +46,8 @@ def build_use_case(command_runner: Optional[CommandRunner] = None, config: Optio
 
     # Other adapters
     parser = AICommandParserAdapter() # Use the new AI-based parser
-    report_generator = FileReportGenerator() # Use the new file-based reporter
+    report_generator = JsonReporter() # Use the new file-based reporter
+    audit_logger = FileAuditLogger()
     error_fixer = SimpleAiFixerAdapter()
     fallback_runner = GenericRunner(command_runner=command_runner)
     logger = FileLoggerAdapter() # Use the new file-based logger
@@ -66,7 +68,8 @@ def build_use_case(command_runner: Optional[CommandRunner] = None, config: Optio
         error_fixer=error_fixer,
         logger=logger, # Inject the logger
         config=config,
-        doctor=doctor
+        doctor=doctor,
+        audit_logger=audit_logger
     )
 
 @app.command()

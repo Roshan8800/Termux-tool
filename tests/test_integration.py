@@ -65,12 +65,12 @@ async def test_end_to_end_whois_command(cleanup_files):
     assert os.path.exists(result.output_log_file)
     with open(result.output_log_file, 'r') as f:
         log_content = f.read()
-    assert "whois google.com" in log_content
+    assert "Registrant Organization: Google LLC" in log_content
 
     # 3. Assert that a report file was created and contains expected content
-    report_files = glob("reports/whois-*.json")
-    assert len(report_files) == 1
-    with open(report_files[0], 'r') as f:
+    summary_path = result.output_log_file.replace("run.log", "summary.json")
+    assert os.path.exists(summary_path)
+    with open(summary_path, 'r') as f:
         report_data = f.read()
     assert '"tool_name": "whois"' in report_data
     assert '"raw_command": "whois google.com"' in report_data
@@ -106,7 +106,7 @@ async def test_end_to_end_git_install_command(cleanup_files, cleanup_cloned_tool
 
     # 3. Assert log and report files were created
     assert os.path.exists(result.output_log_file)
-    assert len(glob("reports/sqlmap-*.json")) == 1
+    assert os.path.exists(result.output_log_file.replace("run.log", "summary.json"))
 
 
 @pytest.mark.asyncio

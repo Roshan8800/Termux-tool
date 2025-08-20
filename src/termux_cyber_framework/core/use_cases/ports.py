@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, List
 from termux_cyber_framework.core.domain.models import Command, Tool, ExecutionResult, Error
 from termux_cyber_framework.core.domain.config import Config
+from termux_cyber_framework.core.domain.run_paths import RunPaths
 from enum import Enum
 
 
@@ -71,13 +72,14 @@ class ToolRunnerPort(ABC):
     Each tool adapter will implement this port.
     """
     @abstractmethod
-    def run(self, tool: Tool, command: Command) -> ExecutionResult:
+    def run(self, tool: Tool, command: Command, paths: RunPaths) -> ExecutionResult:
         """
         Runs the given command for the given tool.
 
         Args:
             tool: The tool definition, containing the base run command.
             command: The command object containing args.
+            paths: The paths for the report files.
 
         Returns:
             A ExecutionResult object with the execution results.
@@ -89,12 +91,36 @@ class ReportGeneratorPort(ABC):
     A port for generating and outputting a report.
     """
     @abstractmethod
-    def generate(self, result: ExecutionResult) -> None:
+    def prepare_report_paths(self, tool_name: str) -> RunPaths:
+        """
+        Prepares the paths for the report files.
+
+        Returns:
+            A RunPaths object with the summary and run log paths.
+        """
+        pass
+
+    @abstractmethod
+    def generate(self, result: ExecutionResult, paths: RunPaths) -> None:
         """
         Generates and outputs the given report.
 
         Args:
             result: The execution result to be generated.
+
+        Returns:
+            The path to the generated report.
+        """
+        pass
+
+class AuditLoggerPort(ABC):
+    """
+    A port for logging audit events.
+    """
+    @abstractmethod
+    def append(self, event: dict) -> None:
+        """
+        Appends an event to the audit log.
         """
         pass
 
