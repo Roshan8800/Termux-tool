@@ -1,73 +1,79 @@
-from typing import Dict
-from termux_cyber_framework.core.domain.models import Report, Command, Error
+from typing import Dict, Optional
+from termux_cyber_framework.core.domain.models import Report, Command, Error, Tool
 from termux_cyber_framework.core.use_cases.ports import (
     CommandParserPort,
     ToolInstallerPort,
     ToolRunnerPort,
-    ReportGeneratorPort
+    ReportGeneratorPort,
+    ErrorFixerPort
 )
 
 class RunToolUseCase:
     """
     Orchestrates the entire process of running a command from user input,
-    using tool-specific adapters.
+    using tool-specific adapters and an AI-powered error fixer.
     """
 
     def __init__(
         self,
         parser: CommandParserPort,
         tool_installer: ToolInstallerPort,
-        tool_runners: Dict[str, ToolRunnerPort], # A registry of tool-specific runners
+        tool_runners: Dict[str, ToolRunnerPort],
         report_generator: ReportGeneratorPort,
-        fallback_runner: ToolRunnerPort # A generic runner for tools without a specific adapter
+        fallback_runner: ToolRunnerPort,
+        error_fixer: ErrorFixerPort # New dependency
     ):
         self.parser = parser
         self.tool_installer = tool_installer
         self.tool_runners = tool_runners
         self.report_generator = report_generator
         self.fallback_runner = fallback_runner
+        self.error_fixer = error_fixer
+
+    async def _run_command_flow(self, command: Command) -> Report:
+        """Helper to run a single command and return its report."""
+        tool = self.tool_installer.find_tool(command.tool_name)
+        if not tool:
+            # Special case for commands like 'sudo' that might not be in our tool list
+            if command.tool_name == 'sudo':
+                tool = Tool(name='sudo', description='Run as superuser', install_command='echo "sudo is a system command"', run_command='sudo')
+            else:
+                raise ValueError(f"Tool '{command.tool_name}' is not defined.")
+
+        if not self.tool_installer.check_if_installed(tool) and command.tool_name != 'sudo':
+             print(f"[*] Tool '{tool.name}' is not installed. Installing...")
+             if not self.tool_installer.install_tool(tool):
+                 raise RuntimeError(f"Failed to install tool '{tool.name}'.")
+             print(f"[+] Tool '{tool.name}' installed successfully.")
+
+        runner = self.tool_runners.get(tool.name.lower(), self.fallback_runner)
+        print(f"[*] Using runner: {runner.__class__.__name__} for command '{command.tool_name}'")
+        return runner.run(tool, command)
+
 
     async def execute(self, user_input: str) -> Report:
         """
-        Executes the full workflow: parse, find tool, install if needed,
-        select the correct runner, execute, and generate a report.
-
-        Args:
-            user_input: The raw natural language input from the user.
-
-        Returns:
-            The final Report object.
+        Executes the full workflow, now with an attempt to fix errors.
         """
         try:
-            # 1. Parse the command
             command = await self.parser.parse_command(user_input)
+            report = await self._run_command_flow(command)
 
-            # 2. Find the tool definition
-            tool = self.tool_installer.find_tool(command.tool_name)
-            if not tool:
-                raise ValueError(f"Tool '{command.tool_name}' is not defined in the tool registry.")
+            # If the first attempt fails, try to fix it
+            if not report.success and report.error:
+                print("[*] Initial command failed. Consulting AI error fixer...")
+                fixed_command = await self.error_fixer.suggest_fix(report.error, command)
 
-            # 3. Ensure the tool is installed
-            if not self.tool_installer.check_if_installed(tool):
-                print(f"[*] Tool '{tool.name}' is not installed. Attempting to install...")
-                if not self.tool_installer.install_tool(tool):
-                    raise RuntimeError(f"Failed to install tool '{tool.name}'.")
-                print(f"[+] Tool '{tool.name}' installed successfully.")
-
-            # 4. Select the appropriate tool runner (specific or fallback)
-            runner = self.tool_runners.get(tool.name.lower(), self.fallback_runner)
-            print(f"[*] Using runner: {runner.__class__.__name__}")
-
-            # 5. Execute the command
-            report = runner.run(tool, command)
+                if fixed_command:
+                    print(f"[*] AI suggests a fix: '{fixed_command.raw_command}'. Retrying...")
+                    report = await self._run_command_flow(fixed_command)
+                else:
+                    print("[*] AI had no suggestion. Reporting initial failure.")
 
         except (ValueError, RuntimeError) as e:
-            # Create a generic error report if a step above fails
             command = Command(tool_name="framework", args=[], raw_command=user_input)
             error = Error(message=str(e))
             report = Report(command=command, success=False, output="", error=error)
 
-        # 6. Generate the output via the report generator port
         self.report_generator.generate(report)
-
-        return report # Return the report for any further programmatic use
+        return report

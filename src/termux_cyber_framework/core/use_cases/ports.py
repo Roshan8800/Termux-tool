@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Optional
-from termux_cyber_framework.core.domain.models import Command, Tool, Report
+from termux_cyber_framework.core.domain.models import Command, Tool, Report, Error
 
 class CommandParserPort(ABC):
     """
@@ -56,5 +56,25 @@ class ReportGeneratorPort(ABC):
 
         Args:
             report: The report to be generated.
+        """
+        pass
+
+
+class ErrorFixerPort(ABC):
+    """
+    A port for an AI-driven component that suggests fixes for failed commands.
+    """
+    @abstractmethod
+    async def suggest_fix(self, error: Error, command: Command) -> Optional[Command]:
+        """
+        Analyzes an error and suggests a new, corrected command.
+
+        Args:
+            error: The error that occurred.
+            command: The original command that failed.
+
+        Returns:
+            A new Command object with a suggested fix, or None if no fix
+            can be determined.
         """
         pass

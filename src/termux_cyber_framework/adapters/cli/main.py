@@ -7,6 +7,7 @@ from termux_cyber_framework.adapters.tool_installer.local_tool_installer import 
 from termux_cyber_framework.adapters.tool_runner.generic_tool_runner import GenericToolRunnerAdapter
 from termux_cyber_framework.adapters.tool_runner.nmap_adapter import NmapAdapter
 from termux_cyber_framework.adapters.report_generator.console_report_generator import ConsoleReportGenerator
+from termux_cyber_framework.adapters.error_fixer.simple_ai_fixer import SimpleAiFixerAdapter
 
 app = typer.Typer(
     name="tcf",
@@ -19,23 +20,20 @@ def build_use_case() -> RunToolUseCase:
     """
     # --- Adapters Initialization ---
 
-    # Get the path to the tools.json manifest
     base_dir = os.path.dirname(os.path.abspath(__file__))
     manifest_path = os.path.join(
         base_dir, "..", "tool_installer", "tools.json"
     )
 
-    # Input and secondary adapters
     parser = SimpleCommandParserAdapter()
     tool_installer = LocalToolInstallerAdapter(manifest_path)
     report_generator = ConsoleReportGenerator()
+    error_fixer = SimpleAiFixerAdapter() # New adapter
 
-    # Tool-specific runner adapters registry
     tool_runners = {
         "nmap": NmapAdapter()
     }
 
-    # Fallback runner for tools without a specific adapter
     fallback_runner = GenericToolRunnerAdapter()
 
     # --- Use Case Construction ---
@@ -45,7 +43,8 @@ def build_use_case() -> RunToolUseCase:
         tool_installer=tool_installer,
         tool_runners=tool_runners,
         report_generator=report_generator,
-        fallback_runner=fallback_runner
+        fallback_runner=fallback_runner,
+        error_fixer=error_fixer # New dependency
     )
 
 @app.command()
@@ -60,7 +59,6 @@ def run(
     use_case = build_use_case()
 
     async def main():
-        # The use case now handles report generation, so we just execute it.
         await use_case.execute(command)
 
     asyncio.run(main())
