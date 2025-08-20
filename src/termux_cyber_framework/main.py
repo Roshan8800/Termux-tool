@@ -10,7 +10,7 @@ from termux_cyber_framework.adapters.cli.main import app
 def main():
     """
     This function launches the command-line interface.
-    The composition of dependencies is handled within the CLI adapter for this project.
+    The composition of dependencies is handled within the CLI adapter.
     """
     app()
 

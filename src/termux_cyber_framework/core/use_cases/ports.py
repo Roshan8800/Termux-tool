@@ -1,68 +1,82 @@
 from abc import ABC, abstractmethod
-from typing import List
-from termux_cyber_framework.core.domain.models import NetworkDevice, Vulnerability
+from typing import Optional, List
+from termux_cyber_framework.core.domain.models import Command, Tool, Report
 
-class NetworkScannerPort(ABC):
+class CommandParserPort(ABC):
     """
-    A port for a network scanner. This defines the contract for any network
-    scanning implementation that the core application will use.
+    A port for parsing natural language text into a structured Command.
     """
-
     @abstractmethod
-    def scan_network(self, ip_range: str) -> List[NetworkDevice]:
+    async def parse_command(self, text: str) -> Command:
         """
-        Scans a given IP range and returns a list of discovered devices.
+        Parses a natural language string into a structured Command object.
 
         Args:
-            ip_range: The IP range to scan (e.g., '192.168.1.0/24').
+            text: The user's raw input string.
 
         Returns:
-            A list of NetworkDevice objects.
+            A Command object.
+        """
+        pass
+
+class ToolManagerPort(ABC):
+    """
+    A port for managing cybersecurity tools.
+    """
+    @abstractmethod
+    def find_tool(self, name: str) -> Optional[Tool]:
+        """
+        Finds a tool by its name from a known list or registry.
+
+        Args:
+            name: The name of the tool to find.
+
+        Returns:
+            A Tool object if found, otherwise None.
         """
         pass
 
     @abstractmethod
-    def scan_device_for_vulnerabilities(self, device: NetworkDevice) -> List[Vulnerability]:
+    def install_tool(self, tool: Tool) -> bool:
         """
-        Scans a specific device for known vulnerabilities.
+        Installs the given tool.
 
         Args:
-            device: The NetworkDevice to scan.
+            tool: The Tool object to install.
 
         Returns:
-            A list of Vulnerability objects found on the device.
-        """
-        pass
-
-
-class ReportRepositoryPort(ABC):
-    """
-    A port for a report repository. This defines the contract for storing
-    and retrieving scan reports.
-    """
-
-    @abstractmethod
-    def save_vulnerabilities(self, vulnerabilities: List[Vulnerability]) -> str:
-        """
-        Saves a list of vulnerabilities to the repository.
-
-        Args:
-            vulnerabilities: A list of Vulnerability objects to save.
-
-        Returns:
-            A unique identifier for the saved report.
+            True if installation was successful, otherwise False.
         """
         pass
 
     @abstractmethod
-    def get_vulnerabilities_by_report_id(self, report_id: str) -> List[Vulnerability]:
+    def check_if_installed(self, tool: Tool) -> bool:
         """
-        Retrieves a list of vulnerabilities by its report ID.
+        Checks if a tool is already installed on the system.
 
         Args:
-            report_id: The unique identifier of the report.
+            tool: The tool to check.
 
         Returns:
-            A list of Vulnerability objects.
+            True if the tool is installed, otherwise False.
+        """
+        pass
+
+
+class ToolRunnerPort(ABC):
+    """
+    A port for executing commands in the underlying shell.
+    """
+    @abstractmethod
+    def run_command(self, tool: Tool, command: Command) -> Report:
+        """
+        Executes a command for a given tool.
+
+        Args:
+            tool: The tool that provides the base execution command.
+            command: The specific command to execute, including arguments.
+
+        Returns:
+            A Report object containing the execution results.
         """
         pass

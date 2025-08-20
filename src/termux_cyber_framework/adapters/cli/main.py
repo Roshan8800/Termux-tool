@@ -1,42 +1,66 @@
+import asyncio
 import typer
-from termux_cyber_framework.core.use_cases.network_scanner_use_case import NetworkScannerUseCase
-from termux_cyber_framework.adapters.scanner.mock_scanner import MockNetworkScanner
-from termux_cyber_framework.adapters.db.in_memory_repository import InMemoryReportRepository
+import os
+from termux_cyber_framework.core.use_cases.run_tool_use_case import RunToolUseCase
+from termux_cyber_framework.adapters.command_parser.simple_parser import SimpleCommandParserAdapter
+from termux_cyber_framework.adapters.tool_manager.local_tool_manager import LocalToolManagerAdapter
+from termux_cyber_framework.adapters.tool_runner.shell_tool_runner import ShellToolRunnerAdapter
 
-# Create a Typer application
 app = typer.Typer(
-    name="termux-cyber-framework",
-    help="An AI-powered cybersecurity framework for Termux."
+    name="tcf",
+    help="A natural language-powered cybersecurity framework for Termux."
 )
 
-def get_use_case() -> NetworkScannerUseCase:
+def build_use_case() -> RunToolUseCase:
     """
-    This function acts as a simplified Dependency Injection container.
-    It creates and wires up the necessary components. This is the
-    "Composition Root" of the application.
+    Composition Root: Constructs and wires all adapters and use cases.
     """
-    # In a real application, you might read configuration here to decide
-    # which adapters to use (e.g., MockScanner vs. NmapScanner).
-    scanner_adapter = MockNetworkScanner()
-    repository_adapter = InMemoryReportRepository()
-    return NetworkScannerUseCase(scanner=scanner_adapter, repository=repository_adapter)
+    # Construct the absolute path to the tools.json manifest
+    # This makes the path resolution independent of the current working directory
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    manifest_path = os.path.join(
+        base_dir, "..", "tool_manager", "tools.json"
+    )
+
+    parser = SimpleCommandParserAdapter()
+    tool_manager = LocalToolManagerAdapter(manifest_path)
+    tool_runner = ShellToolRunnerAdapter()
+
+    return RunToolUseCase(
+        parser=parser,
+        tool_manager=tool_manager,
+        tool_runner=tool_runner
+    )
 
 @app.command()
-def scan(
-    ip_range: str = typer.Argument(
-        "192.168.1.0/24",
-        help="The IP range to scan, e.g., '192.168.1.0/24'."
-    )
+def run(
+    command: str = typer.Argument(..., help="The command to run in natural language.")
 ):
     """
-    Scan a network for devices and vulnerabilities.
+    Runs a command by parsing it, ensuring the tool is installed,
+    and executing it.
     """
-    print("Initializing scanner...")
-    # Get the fully wired use case
-    scanner_use_case = get_use_case()
-    # Execute the use case
-    report_id = scanner_use_case.execute(ip_range)
-    print(f"Scan complete. Report ID: {report_id}")
+    print(f"[*] Received command: '{command}'")
+    use_case = build_use_case()
+
+    async def main():
+        report = await use_case.execute(command)
+
+        print("\n--- Execution Report ---")
+        print(f"Command: '{report.command.raw_command}'")
+        print(f"Success: {report.success}")
+
+        if report.output:
+            print("\n--- Output ---")
+            print(report.output)
+
+        if report.error:
+            print("\n--- Error ---")
+            print(f"Code: {report.error.error_code if report.error.error_code is not None else 'N/A'}")
+            print(f"Message: {report.error.message}")
+        print("----------------------")
+
+    asyncio.run(main())
 
 if __name__ == "__main__":
     app()
