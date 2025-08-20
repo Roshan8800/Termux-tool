@@ -1,8 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import Optional, List
-from termux_cyber_framework.core.domain.models import Command, Tool, ExecutionResult, Error
-from termux_cyber_framework.core.domain.config import Config
-from termux_cyber_framework.core.domain.run_paths import RunPaths
+from typing import Optional
+from termux_cyber_framework.core.domain.models import Command, Tool, Report, Error
 from enum import Enum
 
 
@@ -36,13 +34,12 @@ class InstallerStrategyPort(ABC):
     A port for a specific installation strategy (e.g., git, pip).
     """
     @abstractmethod
-    def install(self, tool: Tool, config: Config) -> bool:
+    def install(self, tool: Tool) -> bool:
         """
         Installs the given tool using the specific strategy.
 
         Args:
             tool: The tool to install.
-            config: The framework configuration.
 
         Returns:
             True if installation was successful, False otherwise.
@@ -59,7 +56,7 @@ class ToolInstallerPort(ABC):
         pass
 
     @abstractmethod
-    def install_tool(self, tool: Tool, config: Config) -> bool:
+    def install_tool(self, tool: Tool) -> bool:
         pass
 
     @abstractmethod
@@ -72,77 +69,36 @@ class ToolRunnerPort(ABC):
     Each tool adapter will implement this port.
     """
     @abstractmethod
-    def run(self, tool: Tool, command: Command, paths: RunPaths) -> ExecutionResult:
+    def run(self, tool: Tool, command: Command) -> Report:
         """
         Runs the given command for the given tool.
 
         Args:
             tool: The tool definition, containing the base run command.
             command: The command object containing args.
-            paths: The paths for the report files.
 
         Returns:
-            A ExecutionResult object with the execution results.
+            A Report object with the execution results.
         """
         pass
+
+class ToolAdapterPort(ToolInstallerPort, ToolRunnerPort):
+    """
+    A port for a tool adapter that handles both installation and execution.
+    """
+    pass
 
 class ReportGeneratorPort(ABC):
     """
     A port for generating and outputting a report.
     """
     @abstractmethod
-    def prepare_report_paths(self, tool_name: str) -> RunPaths:
-        """
-        Prepares the paths for the report files.
-
-        Returns:
-            A RunPaths object with the summary and run log paths.
-        """
-        pass
-
-    @abstractmethod
-    def generate(self, result: ExecutionResult, paths: RunPaths) -> None:
+    def generate(self, report: Report) -> None:
         """
         Generates and outputs the given report.
 
         Args:
-            result: The execution result to be generated.
-
-        Returns:
-            The path to the generated report.
-        """
-        pass
-
-class AuditLoggerPort(ABC):
-    """
-    A port for logging audit events.
-    """
-    @abstractmethod
-    def append(self, event: dict) -> None:
-        """
-        Appends an event to the audit log.
-        """
-        pass
-
-class ToolCatalogPort(ABC):
-    """
-    A port for getting available tools.
-    """
-    @abstractmethod
-    def get_tools(self) -> List[Tool]:
-        """
-        Returns a list of available tools.
-        """
-        pass
-
-class ConsentPort(ABC):
-    """
-    A port for getting user consent.
-    """
-    @abstractmethod
-    def get_consent(self, command: Command) -> bool:
-        """
-        Gets consent from the user to run a command.
+            report: The report to be generated.
         """
         pass
 
@@ -163,17 +119,5 @@ class ErrorFixerPort(ABC):
         Returns:
             A new Command object with a suggested fix, or None if no fix
             can be determined.
-        """
-        pass
-
-
-class DoctorPort(ABC):
-    """
-    A port for detecting and fixing common issues.
-    """
-    @abstractmethod
-    def detect_and_fix(self, result: ExecutionResult) -> List[dict]:
-        """
-        Inspects the result of a command execution and applies fixes.
         """
         pass

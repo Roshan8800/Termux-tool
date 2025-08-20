@@ -7,7 +7,7 @@ import json
 from glob import glob
 from termux_cyber_framework.adapters.cli.main import build_use_case
 from termux_cyber_framework.core.domain.config import Config
-from .mocks import MockCommandRunner, MockConsentService
+from .mocks import MockCommandRunner, MockConsentService, MockExecutionHistory
 from termux_cyber_framework.core.domain.models import ExecutionResult
 
 @pytest.fixture
@@ -50,7 +50,8 @@ async def test_end_to_end_whois_command(cleanup_files):
     })
     config = Config(allow_system_install=True)
     consent_service = MockConsentService(consent_to_give=True)
-    use_case = build_use_case(command_runner=mock_runner, config=config, consent_service=consent_service)
+    execution_history = MockExecutionHistory()
+    use_case = build_use_case(command_runner=mock_runner, config=config, consent_service=consent_service, execution_history=execution_history)
     command = "whois google.com"
 
     # Act
@@ -86,6 +87,10 @@ async def test_end_to_end_whois_command(cleanup_files):
     assert audit_event["tool"] == "whois"
     assert audit_event["command"] == "whois google.com"
 
+    # 5. Assert that the execution history was updated
+    assert len(execution_history.history) == 1
+    assert execution_history.history[0].command.tool_name == "whois"
+
 
 @pytest.mark.asyncio
 async def test_end_to_end_git_install_command(cleanup_files, cleanup_cloned_tools):
@@ -100,7 +105,8 @@ async def test_end_to_end_git_install_command(cleanup_files, cleanup_cloned_tool
     })
     config = Config(allow_system_install=True)
     consent_service = MockConsentService(consent_to_give=True)
-    use_case = build_use_case(command_runner=mock_runner, config=config, consent_service=consent_service)
+    execution_history = MockExecutionHistory()
+    use_case = build_use_case(command_runner=mock_runner, config=config, consent_service=consent_service, execution_history=execution_history)
     # Using --version is a simple, non-intrusive way to check if sqlmap runs.
     command = "sqlmap --version"
 
@@ -130,6 +136,10 @@ async def test_end_to_end_git_install_command(cleanup_files, cleanup_cloned_tool
                 assert audit_event["command"] == "sqlmap --version"
                 break
 
+    # 5. Assert that the execution history was updated
+    assert len(execution_history.history) == 1
+    assert execution_history.history[0].command.tool_name == "sqlmap"
+
 
 @pytest.mark.asyncio
 async def test_system_install_disallowed(cleanup_files):
@@ -140,7 +150,8 @@ async def test_system_install_disallowed(cleanup_files):
     mock_runner = MockCommandRunner()
     config = Config(allow_system_install=False)
     consent_service = MockConsentService(consent_to_give=True)
-    use_case = build_use_case(command_runner=mock_runner, config=config, consent_service=consent_service)
+    execution_history = MockExecutionHistory()
+    use_case = build_use_case(command_runner=mock_runner, config=config, consent_service=consent_service, execution_history=execution_history)
     command = "whois google.com"
 
     # Act
@@ -163,7 +174,8 @@ async def test_install_logging(cleanup_files):
     })
     config = Config(allow_system_install=True)
     consent_service = MockConsentService(consent_to_give=True)
-    use_case = build_use_case(command_runner=mock_runner, config=config, consent_service=consent_service)
+    execution_history = MockExecutionHistory()
+    use_case = build_use_case(command_runner=mock_runner, config=config, consent_service=consent_service, execution_history=execution_history)
     command = "whois google.com"
 
     # Act
@@ -186,7 +198,9 @@ async def test_dry_run_flag(cleanup_files):
     # Arrange
     mock_runner = MockCommandRunner()
     config = Config(dry_run=True)
-    use_case = build_use_case(command_runner=mock_runner, config=config)
+    consent_service = MockConsentService(consent_to_give=True)
+    execution_history = MockExecutionHistory()
+    use_case = build_use_case(command_runner=mock_runner, config=config, consent_service=consent_service, execution_history=execution_history)
     command = "whois google.com"
 
     # Act

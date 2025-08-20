@@ -14,6 +14,15 @@ class MockAuditLogger(AuditLoggerPort):
     def append(self, event: dict) -> None:
         self.events.append(event)
 
+from termux_cyber_framework.core.domain.models import ExecutionResult
+
+class MockExecutionHistory:
+    def __init__(self):
+        self.history = []
+
+    def append(self, result: ExecutionResult):
+        self.history.append(result)
+
 class MockConsentService(ConsentPort):
     def __init__(self, consent_to_give: bool = True):
         self.consent_to_give = consent_to_give

@@ -8,7 +8,7 @@ class JsonCatalogAdapter(ToolCatalogPort):
     """
     A ToolCatalogPort implementation that loads tools from a JSON file.
     """
-    def __init__(self, manifest_path: str):
+    def __init__(self, manifest_path: str = "data/tool_catalog.json"):
         self.manifest_path = manifest_path
 
     def get_tools(self) -> List[Tool]:

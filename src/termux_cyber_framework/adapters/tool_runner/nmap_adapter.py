@@ -1,15 +1,32 @@
 import ipaddress
+import shutil
+import subprocess
 from .generic_runner import GenericRunner
-from termux_cyber_framework.core.domain.models import Command, Tool, ExecutionResult
+from termux_cyber_framework.core.domain.models import Command, Tool, ExecutionResult, Config
 from termux_cyber_framework.core.domain.run_paths import RunPaths
 from termux_cyber_framework.core.command_runner import CommandRunner
+from termux_cyber_framework.core.use_cases.ports import ToolAdapterPort
 
-class NmapAdapter(GenericRunner):
+class NmapAdapter(GenericRunner, ToolAdapterPort):
     """
-    A specific ToolRunnerPort implementation for the Nmap tool.
+    A specific ToolAdapterPort implementation for the Nmap tool.
     """
     def __init__(self, command_runner: CommandRunner = None):
         super().__init__(command_runner)
+
+    def is_installed(self) -> bool:
+        return shutil.which("nmap") is not None
+
+    def install(self, config: Config) -> bool:
+        if not config.allow_system_install:
+            print(f"[-] System-level installation for 'nmap' is not allowed by policy.")
+            return False
+
+        try:
+            process = self._command_runner.run(["pkg", "install", "-y", "nmap"], check=True, capture_output=True, text=True)
+            return process.returncode == 0
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return False
 
     def _is_cidr(self, s: str) -> bool:
         try:
