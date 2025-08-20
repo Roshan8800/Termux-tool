@@ -5,6 +5,7 @@ import asyncio
 import re
 from glob import glob
 from termux_cyber_framework.adapters.cli.main import build_use_case
+from .mocks import MockCommandRunner
 
 @pytest.fixture
 def cleanup_files():
@@ -40,7 +41,11 @@ async def test_end_to_end_whois_command(cleanup_files):
     """
     # Arrange
     # Build the full use case with all real adapters
-    use_case = build_use_case()
+    mock_runner = MockCommandRunner({
+        "pkg install whois -y": {"returncode": 0, "stdout": "whois installed"},
+        "whois google.com": {"returncode": 0, "stdout": "Registrant Organization: Google LLC"}
+    })
+    use_case = build_use_case(command_runner=mock_runner)
     command = "whois google.com"
 
     # Act
@@ -80,7 +85,11 @@ async def test_end_to_end_git_install_command(cleanup_files, cleanup_cloned_tool
     This test verifies that the tool is cloned and then executed.
     """
     # Arrange
-    use_case = build_use_case()
+    mock_runner = MockCommandRunner({
+        "git clone https://github.com/sqlmapproject/sqlmap.git tools/sqlmap": {"returncode": 0},
+        "python3 tools/sqlmap/sqlmap.py --version": {"returncode": 0, "stdout": "1.8.3"}
+    })
+    use_case = build_use_case(command_runner=mock_runner)
     # Using --version is a simple, non-intrusive way to check if sqlmap runs.
     command = "sqlmap --version"
 
@@ -88,10 +97,7 @@ async def test_end_to_end_git_install_command(cleanup_files, cleanup_cloned_tool
     report = await use_case.execute(command)
 
     # Assert
-    # 1. Assert that the tool directory was created by the GitInstaller
-    assert os.path.exists("tools/sqlmap/sqlmap.py")
-
-    # 2. Assert that the command was successful
+    # 1. Assert that the command was successful
     assert report.success is True
     assert report.error is None
     # Check for a version string in the output

@@ -15,7 +15,8 @@
         "install_info": {
             "method": "git",
             "source": "https://github.com/sqlmapproject/sqlmap.git",
-            "path": "tools/sqlmap"
+            "path": "tools/sqlmap",
+            "health_check": "python3 tools/sqlmap/sqlmap.py --version"
         },
         "run_command": "python3 tools/sqlmap/sqlmap.py",
         "adapter_class": null
@@ -28,6 +29,18 @@
             "source": "whois"
         },
         "run_command": "whois",
+        "adapter_class": null
+    },
+    {
+        "name": "requests",
+        "description": "A simple, yet elegant HTTP library.",
+        "install_info": {
+            "method": "pip",
+            "source": "requests",
+            "python_module": "requests",
+            "bin_name": null
+        },
+        "run_command": null,
         "adapter_class": null
     }
 ]

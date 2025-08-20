@@ -2,19 +2,21 @@ import asyncio
 import typer
 import os
 from termux_cyber_framework.core.use_cases.run_tool_use_case import RunToolUseCase
+from termux_cyber_framework.core.command_runner import CommandRunner
 from termux_cyber_framework.adapters.command_parser.ai_parser import AICommandParserAdapter
 from termux_cyber_framework.adapters.tool_installer.dynamic_tool_manager import DynamicToolManagerAdapter
 from termux_cyber_framework.adapters.tool_runner.generic_tool_runner import GenericToolRunnerAdapter
 from termux_cyber_framework.adapters.report_generator.file_report_generator import FileReportGenerator
 from termux_cyber_framework.adapters.error_fixer.simple_ai_fixer import SimpleAiFixerAdapter
 from termux_cyber_framework.adapters.logger.file_logger import FileLoggerAdapter
+from typing import Optional
 
 app = typer.Typer(
     name="tcf",
     help="A natural language-powered cybersecurity framework for Termux."
 )
 
-def build_use_case() -> RunToolUseCase:
+def build_use_case(command_runner: Optional[CommandRunner] = None) -> RunToolUseCase:
     """
     Composition Root: Constructs and wires all adapters and use cases.
     """
@@ -26,7 +28,7 @@ def build_use_case() -> RunToolUseCase:
     )
 
     # The new dynamic manager for tools and adapters
-    tool_manager = DynamicToolManagerAdapter(manifest_path)
+    tool_manager = DynamicToolManagerAdapter(manifest_path, command_runner=command_runner)
 
     # The manager now dynamically loads the runners from the manifest
     tool_runners = tool_manager.load_tool_runners()
@@ -35,7 +37,7 @@ def build_use_case() -> RunToolUseCase:
     parser = AICommandParserAdapter() # Use the new AI-based parser
     report_generator = FileReportGenerator() # Use the new file-based reporter
     error_fixer = SimpleAiFixerAdapter()
-    fallback_runner = GenericToolRunnerAdapter()
+    fallback_runner = GenericToolRunnerAdapter(command_runner=command_runner)
     logger = FileLoggerAdapter() # Use the new file-based logger
 
     # --- Use Case Construction ---

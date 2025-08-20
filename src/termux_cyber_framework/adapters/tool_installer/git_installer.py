@@ -2,11 +2,39 @@ import subprocess
 import os
 from termux_cyber_framework.core.domain.models import Tool
 from termux_cyber_framework.core.use_cases.ports import InstallerStrategyPort
+from termux_cyber_framework.core.command_runner import CommandRunner
 
 class GitInstallerAdapter(InstallerStrategyPort):
     """
     An installer strategy for installing tools from a Git repository.
     """
+    def __init__(self, command_runner: CommandRunner):
+        self._command_runner = command_runner
+
+    def is_installed(self, tool: Tool) -> bool:
+        """
+        Checks if a git-installed tool is present and healthy.
+        """
+        path = tool.install_info.path
+        if not path or not os.path.exists(path):
+            return False
+
+        health_check = tool.install_info.health_check
+        if health_check:
+            try:
+                # Using shell=True for complex commands, be cautious
+                self._command_runner.run(
+                    health_check,
+                    shell=True,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+                return False
+        return True
+
     def install(self, tool: Tool) -> bool:
         """
         Installs the tool by cloning a Git repository.
@@ -34,7 +62,7 @@ class GitInstallerAdapter(InstallerStrategyPort):
 
         print(f"[*] Attempting to clone git repository '{repo_url}' into '{clone_path}'...")
         try:
-            process = subprocess.run(
+            process = self._command_runner.run(
                 command,
                 check=True,
                 capture_output=True,

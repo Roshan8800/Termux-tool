@@ -8,6 +8,7 @@ from termux_cyber_framework.core.domain.models import Tool
 from termux_cyber_framework.core.use_cases.ports import (
     ToolInstallerPort, ToolRunnerPort, InstallerStrategyPort
 )
+from termux_cyber_framework.core.command_runner import CommandRunner
 from .git_installer import GitInstallerAdapter
 from .pip_installer import PipInstallerAdapter
 from .pkg_installer import PkgInstallerAdapter
@@ -17,12 +18,13 @@ class DynamicToolManagerAdapter(ToolInstallerPort):
     Manages tools by delegating installation to specific strategy adapters
     and dynamically loading tool runner adapters based on a JSON manifest.
     """
-    def __init__(self, tools_manifest_path: str):
+    def __init__(self, tools_manifest_path: str, command_runner: Optional[CommandRunner] = None):
         self._tools = self._load_tools_from_manifest(tools_manifest_path)
+        command_runner = command_runner or CommandRunner()
         self._installers: Dict[str, InstallerStrategyPort] = {
-            "git": GitInstallerAdapter(),
-            "pip": PipInstallerAdapter(),
-            "pkg": PkgInstallerAdapter(),
+            "git": GitInstallerAdapter(command_runner),
+            "pip": PipInstallerAdapter(command_runner),
+            "pkg": PkgInstallerAdapter(command_runner),
         }
         print(f"[*] Loaded {len(self._tools)} tools from manifest.")
         print(f"[*] Registered {len(self._installers)} installation methods: {list(self._installers.keys())}")
@@ -42,17 +44,16 @@ class DynamicToolManagerAdapter(ToolInstallerPort):
 
     def check_if_installed(self, tool: Tool) -> bool:
         """
-        Checks if a tool is installed. For 'git' tools, it checks the path.
-        For others, it checks if the run_command is in the system's PATH.
+        Delegates the installation check to the appropriate strategy adapter.
         """
         method = tool.install_info.method
-        if method == "git":
-            return os.path.exists(tool.install_info.path)
-        else:
-            # For pkg and pip, we can check if the command is available.
-            # This might need adjustment if the run_command is complex.
-            base_command = tool.run_command.split()[0]
-            return shutil.which(base_command) is not None
+        installer = self._installers.get(method)
+
+        if not installer:
+            print(f"[-] No installer found for method '{method}'.")
+            return False
+
+        return installer.is_installed(tool)
 
     def install_tool(self, tool: Tool) -> bool:
         """

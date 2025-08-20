@@ -1,12 +1,16 @@
 import subprocess
 from termux_cyber_framework.core.domain.models import Command, Tool, Report, Error
 from termux_cyber_framework.core.use_cases.ports import ToolRunnerPort
+from termux_cyber_framework.core.command_runner import CommandRunner
 
 class GenericToolRunnerAdapter(ToolRunnerPort):
     """
     A generic adapter that runs any tool command in the local shell.
     This serves as a fallback for tools without a specific adapter.
     """
+    def __init__(self, command_runner: CommandRunner = None):
+        self._command_runner = command_runner or CommandRunner()
+
     def run(self, tool: Tool, command: Command) -> Report:
         # Split the base command from the tool definition and combine with user args
         base_command_parts = tool.run_command.split()
@@ -14,7 +18,7 @@ class GenericToolRunnerAdapter(ToolRunnerPort):
 
         print(f"[*] Executing with generic fallback runner: {' '.join(full_command)}")
         try:
-            process = subprocess.run(
+            process = self._command_runner.run(
                 full_command,
                 check=False,  # We handle the error manually
                 capture_output=True,

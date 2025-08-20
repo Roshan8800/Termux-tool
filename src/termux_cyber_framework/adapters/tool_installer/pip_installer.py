@@ -1,11 +1,36 @@
 import subprocess
+import shutil
 from termux_cyber_framework.core.domain.models import Tool
 from termux_cyber_framework.core.use_cases.ports import InstallerStrategyPort
+from termux_cyber_framework.core.command_runner import CommandRunner
 
 class PipInstallerAdapter(InstallerStrategyPort):
     """
     An installer strategy for installing Python packages using pip.
     """
+    def __init__(self, command_runner: CommandRunner):
+        self._command_runner = command_runner
+
+    def is_installed(self, tool: Tool) -> bool:
+        """
+        Checks if a pip-installed tool is available.
+        """
+        module_name = tool.install_info.python_module
+        if module_name:
+            try:
+                self._command_runner.run(
+                    ["python3", "-c", f"import {module_name}"],
+                    check=True,
+                    capture_output=True,
+                    text=True
+                )
+                return True
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                return False
+
+        bin_name = tool.install_info.bin_name or tool.name
+        return shutil.which(bin_name) is not None
+
     def install(self, tool: Tool) -> bool:
         """
         Installs a Python package using 'pip'.
@@ -23,7 +48,7 @@ class PipInstallerAdapter(InstallerStrategyPort):
 
         print(f"[*] Attempting to install pip package '{package_name}'...")
         try:
-            process = subprocess.run(
+            process = self._command_runner.run(
                 command,
                 check=True,
                 capture_output=True,
