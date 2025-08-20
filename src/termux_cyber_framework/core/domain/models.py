@@ -1,13 +1,22 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
 
+class InstallInfo(BaseModel):
+    """
+    Defines the installation method and source for a tool.
+    """
+    method: str = Field(..., description="The installation method, e.g., 'git', 'pip', 'pkg'.")
+    source: str = Field(..., description="The source for the installation, e.g., a URL or package name.")
+    path: Optional[str] = Field(None, description="The destination path for installation, e.g., for git clones.")
+
+
 class Tool(BaseModel):
     """
     Represents a cybersecurity tool that can be managed and executed.
     """
     name: str = Field(..., description="The unique name of the tool (e.g., 'nmap').")
     description: str = Field(..., description="A brief description of the tool.")
-    install_command: str = Field(..., description="The shell command to install the tool.")
+    install_info: InstallInfo = Field(..., description="Details for how to install the tool.")
     run_command: str = Field(..., description="The base command to execute the tool (e.g., 'nmap').")
     is_installed: bool = Field(False, description="Whether the tool is currently installed.")
     adapter_class: Optional[str] = Field(None, description="The full import path to the tool's specific adapter class.")

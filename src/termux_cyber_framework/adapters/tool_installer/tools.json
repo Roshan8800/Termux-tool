@@ -2,21 +2,31 @@
     {
         "name": "nmap",
         "description": "A network scanner for discovering hosts and services.",
-        "install_command": "sudo apt-get install nmap -y",
+        "install_info": {
+            "method": "pkg",
+            "source": "nmap"
+        },
         "run_command": "nmap",
         "adapter_class": "termux_cyber_framework.adapters.tool_runner.nmap_adapter.NmapAdapter"
     },
     {
         "name": "sqlmap",
         "description": "An open source penetration testing tool that automates the process of detecting and exploiting SQL injection flaws.",
-        "install_command": "sudo apt-get install sqlmap -y",
-        "run_command": "sqlmap",
+        "install_info": {
+            "method": "git",
+            "source": "https://github.com/sqlmapproject/sqlmap.git",
+            "path": "tools/sqlmap"
+        },
+        "run_command": "python3 tools/sqlmap/sqlmap.py",
         "adapter_class": null
     },
     {
         "name": "whois",
         "description": "A query and response protocol that is widely used for querying databases that store the registered users or assignees of an Internet resource.",
-        "install_command": "sudo apt-get install whois -y",
+        "install_info": {
+            "method": "pkg",
+            "source": "whois"
+        },
         "run_command": "whois",
         "adapter_class": null
     }

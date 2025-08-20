@@ -8,7 +8,10 @@ class GenericToolRunnerAdapter(ToolRunnerPort):
     This serves as a fallback for tools without a specific adapter.
     """
     def run(self, tool: Tool, command: Command) -> Report:
-        full_command = [tool.run_command] + command.args
+        # Split the base command from the tool definition and combine with user args
+        base_command_parts = tool.run_command.split()
+        full_command = base_command_parts + command.args
+
         print(f"[*] Executing with generic fallback runner: {' '.join(full_command)}")
         try:
             process = subprocess.run(

@@ -1,5 +1,5 @@
 from typing import Dict, Optional
-from termux_cyber_framework.core.domain.models import Report, Command, Error, Tool
+from termux_cyber_framework.core.domain.models import Report, Command, Error, Tool, InstallInfo
 from termux_cyber_framework.core.use_cases.ports import (
     CommandParserPort,
     ToolInstallerPort,
@@ -41,7 +41,9 @@ class RunToolUseCase:
         tool = self.tool_installer.find_tool(command.tool_name)
         if not tool:
             if command.tool_name == 'sudo':
-                tool = Tool(name='sudo', description='Run as superuser', install_command='echo "sudo is a system command"', run_command='sudo')
+                # Create a temporary Tool object for sudo, as it's not in our manifest
+                sudo_install_info = InstallInfo(method="system", source="sudo")
+                tool = Tool(name='sudo', description='Run as superuser', install_info=sudo_install_info, run_command='sudo')
                 self.logger.log("'sudo' command detected, creating a temporary tool definition.", level=LogLevel.DEBUG)
             else:
                 self.logger.log(f"Tool '{command.tool_name}' is not defined in the manifest.", level=LogLevel.ERROR)

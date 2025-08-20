@@ -1,6 +1,8 @@
 import pytest
 import os
+import shutil
 import asyncio
+import re
 from glob import glob
 from termux_cyber_framework.adapters.cli.main import build_use_case
 
@@ -18,6 +20,16 @@ def cleanup_files():
             print(f"    - Removed {f}")
         except OSError as e:
             print(f"    - Error removing file {f}: {e.strerror}")
+
+@pytest.fixture
+def cleanup_cloned_tools():
+    """A pytest fixture to clean up cloned tool directories."""
+    yield
+    print("\n[*] Cleaning up cloned tools...")
+    if os.path.exists("tools"):
+        shutil.rmtree("tools")
+        print("    - Removed tools directory")
+
 
 @pytest.mark.asyncio
 async def test_end_to_end_whois_command(cleanup_files):
@@ -59,3 +71,32 @@ async def test_end_to_end_whois_command(cleanup_files):
     assert '"raw_command": "whois google.com"' in report_data
     assert '"success": true' in report_data
     assert "Registrant Organization: Google LLC" in report_data
+
+
+@pytest.mark.asyncio
+async def test_end_to_end_git_install_command(cleanup_files, cleanup_cloned_tools):
+    """
+    Tests the full end-to-end flow for a tool installed via Git.
+    This test verifies that the tool is cloned and then executed.
+    """
+    # Arrange
+    use_case = build_use_case()
+    # Using --version is a simple, non-intrusive way to check if sqlmap runs.
+    command = "sqlmap --version"
+
+    # Act
+    report = await use_case.execute(command)
+
+    # Assert
+    # 1. Assert that the tool directory was created by the GitInstaller
+    assert os.path.exists("tools/sqlmap/sqlmap.py")
+
+    # 2. Assert that the command was successful
+    assert report.success is True
+    assert report.error is None
+    # Check for a version string in the output
+    assert re.search(r"\d+\.\d+", report.output)
+
+    # 3. Assert log and report files were created
+    assert len(glob("logs/*.log")) == 1
+    assert len(glob("reports/sqlmap-*.json")) == 1

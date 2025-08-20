@@ -1,16 +1,21 @@
 import pytest
 from typing import Optional, List, Dict
-from termux_cyber_framework.core.domain.models import Command, Tool, Report, Error
+from termux_cyber_framework.core.domain.models import Command, Tool, Report, Error, InstallInfo
 from termux_cyber_framework.core.use_cases.ports import (
     ToolInstallerPort,
     ToolRunnerPort,
     ReportGeneratorPort,
-    ErrorFixerPort
+    ErrorFixerPort,
+    LoggerPort
 )
 from termux_cyber_framework.core.use_cases.run_tool_use_case import RunToolUseCase
 from termux_cyber_framework.adapters.command_parser.regex_parser import RegexCommandParserAdapter
 
 # --- Mock Adapters for Testing ---
+
+class MockLogger(LoggerPort):
+    def log(self, message: str, level: str = "INFO"):
+        pass
 
 class MockDynamicToolManager(ToolInstallerPort):
     def __init__(self, tools: List[Tool], runners: Dict[str, ToolRunnerPort]):
@@ -71,11 +76,13 @@ class MockErrorFixer(ErrorFixerPort):
 
 @pytest.fixture
 def nmap_tool():
-    return Tool(name="nmap", description="Nmap", install_command="pkg i nmap", run_command="nmap", is_installed=True)
+    install_info = InstallInfo(method="pkg", source="nmap")
+    return Tool(name="nmap", description="Nmap", install_info=install_info, run_command="nmap", is_installed=True)
 
 @pytest.fixture
 def whois_tool():
-    return Tool(name="whois", description="Whois", install_command="pkg i whois", run_command="whois", is_installed=True)
+    install_info = InstallInfo(method="pkg", source="whois")
+    return Tool(name="whois", description="Whois", install_info=install_info, run_command="whois", is_installed=True)
 
 # --- Test Setup ---
 
@@ -92,6 +99,7 @@ def setup(nmap_tool, whois_tool):
 
     report_generator = MockReportGenerator()
     error_fixer = MockErrorFixer()
+    logger = MockLogger()
 
     use_case = RunToolUseCase(
         parser=RegexCommandParserAdapter(), # Using the real regex parser
@@ -99,7 +107,8 @@ def setup(nmap_tool, whois_tool):
         tool_runners=tool_manager.load_tool_runners(), # Dynamically load runners
         report_generator=report_generator,
         fallback_runner=fallback_runner,
-        error_fixer=error_fixer
+        error_fixer=error_fixer,
+        logger=logger
     )
     return use_case, tool_manager, report_generator, error_fixer, nmap_runner, fallback_runner
 
@@ -158,7 +167,8 @@ async def test_orchestrator_attempts_to_fix_and_rerun_on_failure(nmap_tool):
         tool_runners=tool_manager.load_tool_runners(),
         report_generator=report_generator,
         fallback_runner=MockToolRunner("Fallback"),
-        error_fixer=error_fixer
+        error_fixer=error_fixer,
+        logger=MockLogger()
     )
 
     # Act

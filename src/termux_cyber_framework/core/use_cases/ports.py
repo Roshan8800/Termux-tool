@@ -28,6 +28,25 @@ class CommandParserPort(ABC):
     async def parse_command(self, text: str) -> Command:
         pass
 
+
+class InstallerStrategyPort(ABC):
+    """
+    A port for a specific installation strategy (e.g., git, pip).
+    """
+    @abstractmethod
+    def install(self, tool: Tool) -> bool:
+        """
+        Installs the given tool using the specific strategy.
+
+        Args:
+            tool: The tool to install.
+
+        Returns:
+            True if installation was successful, False otherwise.
+        """
+        pass
+
+
 class ToolInstallerPort(ABC):
     """
     A port for managing the installation of cybersecurity tools.
