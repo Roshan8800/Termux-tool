@@ -12,50 +12,35 @@ class SimpleAiFixerAdapter(ErrorFixerPort):
         """
         Suggests a fix based on simple string matching in the error message.
         """
-        # Rule 1: Handle "permission denied" errors by suggesting 'sudo'.
-        if "permission denied" in error.message.lower():
-            # Avoid adding multiple 'sudo's
+        error_msg_lower = error.message.lower()
+
+        # Rule 1: Handle generic "permission denied" or nmap's specific "must be root" error.
+        if "permission denied" in error_msg_lower or "you must be root" in error_msg_lower:
             if command.tool_name != 'sudo':
-                print("[*] AI Fixer: Permission error detected. Suggesting 'sudo'.")
-                # Create a deep copy to avoid modifying the original command object
-                new_command = copy.deepcopy(command)
-                # This is a simplification. A real implementation would need to
-                # handle the tool_name and args more robustly. For example,
-                # it should prepend 'sudo' to the *tool's* command, not just
-                # make the tool 'sudo'. This requires a more complex command
-                # structure, but for now, this demonstrates the principle.
-                # A better approach would be a new field in the Command model,
-                # e.g., `run_as_root: bool`.
-                # For now, let's just prepend to the raw command for demonstration.
-
-                # A better way to represent this:
-                # Let's assume the tool runner knows how to handle a `sudo` flag.
-                # We can't modify the command args easily without knowing more context.
-                # The best way for this architecture is to create a NEW command.
-
-                # Let's try a different approach. The runner will construct the command.
-                # We can't easily prepend 'sudo'.
-                # Let's change the raw command and re-parse. This is inefficient.
-
-                # The cleanest way is to add a flag to the command object.
-                # But I can't change the domain model from an adapter.
-
-                # Let's stick to a simple demonstration. Let's assume the tool runner
-                # will just execute the raw_command if a flag is set.
-                # This is getting complicated.
-
-                # Let's keep it simple and just log a message.
-                # The use case can then decide what to do.
-                # No, the port is `suggest_fix`, so it should return a new command.
-
-                # Let's assume the use case is smart enough to handle this.
-                # A new command where the tool is sudo and the old tool is an arg.
                 new_args = [command.tool_name] + command.args
-                fixed_command = Command(
+                return Command(
                     tool_name="sudo",
                     args=new_args,
                     raw_command=f"sudo {command.raw_command}"
                 )
-                return fixed_command
+
+        # Rule 2: Handle sqlmap's non-interactive error by suggesting '--batch'.
+        if command.tool_name == "sqlmap" and "user input must be provided" in error_msg_lower:
+            if "--batch" not in command.args:
+                new_command = copy.deepcopy(command)
+                new_command.args.append("--batch")
+                new_command.raw_command += " --batch"
+                return new_command
+
+        # Rule 3: Handle "command not found" by suggesting installation.
+        # This is a bit tricky as the fixer should return a runnable command.
+        # For now, we will log this and return None, as installation is handled
+        # before execution. This points to a misconfiguration in tools.json.
+        if "command not found" in error_msg_lower:
+            # In a more advanced system, this could trigger a re-installation
+            # or a search for the correct package name.
+            # For now, we just acknowledge it.
+            print(f"[*] AI Fixer: '{command.tool_name}' not found. Check installation or 'tools.json' config.")
+
 
         return None # No suggestion found

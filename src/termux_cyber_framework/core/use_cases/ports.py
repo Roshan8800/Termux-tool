@@ -1,6 +1,24 @@
 from abc import ABC, abstractmethod
 from typing import Optional
 from termux_cyber_framework.core.domain.models import Command, Tool, Report, Error
+from enum import Enum
+
+
+class LogLevel(Enum):
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+    DEBUG = "DEBUG"
+
+
+class LoggerPort(ABC):
+    """
+    A port for logging framework activity.
+    """
+    @abstractmethod
+    def log(self, message: str, level: LogLevel = LogLevel.INFO):
+        pass
+
 
 class CommandParserPort(ABC):
     """

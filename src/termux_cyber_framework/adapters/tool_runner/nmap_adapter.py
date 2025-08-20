@@ -1,5 +1,5 @@
 import subprocess
-from termux_cyber_framework.core.domain.models import Command, Report, Error
+from termux_cyber_framework.core.domain.models import Command, Tool, Report, Error
 from termux_cyber_framework.core.use_cases.ports import ToolRunnerPort
 
 class NmapAdapter(ToolRunnerPort):
