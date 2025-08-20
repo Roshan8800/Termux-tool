@@ -1,5 +1,0 @@
---- Running command: python3 tools/sqlmap/sqlmap.py --version --batch --threads 1 ---
-
---- STDOUT ---
-1.8.3
---- STDERR ---

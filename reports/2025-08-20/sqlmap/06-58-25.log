@@ -1,5 +1,0 @@
---- Running command: python3 tools/sqlmap/sqlmap.py -u http://test.com --batch --threads 1 ---
-
---- STDOUT ---
-parameter 'id' is vulnerable. a MySQL database
---- STDERR ---
