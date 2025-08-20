@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional
 from termux_cyber_framework.core.domain.models import Command, Tool, Report, Error
+from termux_cyber_framework.core.domain.config import Config
 from enum import Enum
 
 
@@ -34,12 +35,13 @@ class InstallerStrategyPort(ABC):
     A port for a specific installation strategy (e.g., git, pip).
     """
     @abstractmethod
-    def install(self, tool: Tool) -> bool:
+    def install(self, tool: Tool, config: Config) -> bool:
         """
         Installs the given tool using the specific strategy.
 
         Args:
             tool: The tool to install.
+            config: The framework configuration.
 
         Returns:
             True if installation was successful, False otherwise.
@@ -56,7 +58,7 @@ class ToolInstallerPort(ABC):
         pass
 
     @abstractmethod
-    def install_tool(self, tool: Tool) -> bool:
+    def install_tool(self, tool: Tool, config: Config) -> bool:
         pass
 
     @abstractmethod

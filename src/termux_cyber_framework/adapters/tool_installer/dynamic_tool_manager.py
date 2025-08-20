@@ -5,10 +5,12 @@ import importlib
 from typing import List, Optional, Dict
 
 from termux_cyber_framework.core.domain.models import Tool
+from termux_cyber_framework.core.domain.config import Config
 from termux_cyber_framework.core.use_cases.ports import (
     ToolInstallerPort, ToolRunnerPort, InstallerStrategyPort
 )
 from termux_cyber_framework.core.command_runner import CommandRunner
+from termux_cyber_framework.adapters.logger.install_logger import InstallLogger
 from .git_installer import GitInstallerAdapter
 from .pip_installer import PipInstallerAdapter
 from .pkg_installer import PkgInstallerAdapter
@@ -18,13 +20,14 @@ class DynamicToolManagerAdapter(ToolInstallerPort):
     Manages tools by delegating installation to specific strategy adapters
     and dynamically loading tool runner adapters based on a JSON manifest.
     """
-    def __init__(self, tools_manifest_path: str, command_runner: Optional[CommandRunner] = None):
+    def __init__(self, tools_manifest_path: str, command_runner: Optional[CommandRunner] = None, install_logger: Optional[InstallLogger] = None):
         self._tools = self._load_tools_from_manifest(tools_manifest_path)
         command_runner = command_runner or CommandRunner()
+        install_logger = install_logger or InstallLogger()
         self._installers: Dict[str, InstallerStrategyPort] = {
-            "git": GitInstallerAdapter(command_runner),
-            "pip": PipInstallerAdapter(command_runner),
-            "pkg": PkgInstallerAdapter(command_runner),
+            "git": GitInstallerAdapter(command_runner, install_logger),
+            "pip": PipInstallerAdapter(command_runner, install_logger),
+            "pkg": PkgInstallerAdapter(command_runner, install_logger),
         }
         print(f"[*] Loaded {len(self._tools)} tools from manifest.")
         print(f"[*] Registered {len(self._installers)} installation methods: {list(self._installers.keys())}")
@@ -55,7 +58,7 @@ class DynamicToolManagerAdapter(ToolInstallerPort):
 
         return installer.is_installed(tool)
 
-    def install_tool(self, tool: Tool) -> bool:
+    def install_tool(self, tool: Tool, config: Config) -> bool:
         """
         Delegates the installation of a tool to the appropriate strategy adapter.
         """
@@ -67,7 +70,7 @@ class DynamicToolManagerAdapter(ToolInstallerPort):
             return False
 
         print(f"[*] Using '{method}' installer for tool '{tool.name}'.")
-        return installer.install(tool)
+        return installer.install(tool, config)
 
     def load_tool_runners(self) -> Dict[str, ToolRunnerPort]:
         """

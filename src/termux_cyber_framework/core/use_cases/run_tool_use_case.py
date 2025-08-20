@@ -1,5 +1,6 @@
 from typing import Dict, Optional
 from termux_cyber_framework.core.domain.models import Report, Command, Error, Tool, InstallInfo
+from termux_cyber_framework.core.domain.config import Config
 from termux_cyber_framework.core.use_cases.ports import (
     CommandParserPort,
     ToolInstallerPort,
@@ -25,7 +26,8 @@ class RunToolUseCase:
         report_generator: ReportGeneratorPort,
         fallback_runner: ToolRunnerPort,
         error_fixer: ErrorFixerPort,
-        logger: LoggerPort
+        logger: LoggerPort,
+        config: Config
     ):
         self.parser = parser
         self.tool_installer = tool_installer
@@ -34,6 +36,7 @@ class RunToolUseCase:
         self.fallback_runner = fallback_runner
         self.error_fixer = error_fixer
         self.logger = logger
+        self.config = config
 
     async def _run_command_flow(self, command: Command) -> Report:
         """Helper to run a single command and return its report."""
@@ -51,9 +54,13 @@ class RunToolUseCase:
 
         if not self.tool_installer.check_if_installed(tool) and command.tool_name != 'sudo':
              self.logger.log(f"Tool '{tool.name}' is not installed. Attempting installation.")
-             if not self.tool_installer.install_tool(tool):
-                 self.logger.log(f"Failed to install tool '{tool.name}'.", level=LogLevel.ERROR)
-                 raise RuntimeError(f"Failed to install tool '{tool.name}'.")
+             try:
+                 if not self.tool_installer.install_tool(tool, self.config):
+                     self.logger.log(f"Failed to install tool '{tool.name}'.", level=LogLevel.ERROR)
+                     raise RuntimeError(f"Failed to install tool '{tool.name}'.")
+             except PermissionError as e:
+                 self.logger.log(f"Installation failed: {e}", level=LogLevel.ERROR)
+                 raise RuntimeError(str(e)) from e
              self.logger.log(f"Tool '{tool.name}' installed successfully.")
 
         runner = self.tool_runners.get(tool.name.lower(), self.fallback_runner)

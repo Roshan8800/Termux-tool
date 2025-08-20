@@ -1,6 +1,7 @@
 import pytest
 from typing import Optional, List, Dict
 from termux_cyber_framework.core.domain.models import Command, Tool, Report, Error, InstallInfo
+from termux_cyber_framework.core.domain.config import Config
 from termux_cyber_framework.core.use_cases.ports import (
     ToolInstallerPort,
     ToolRunnerPort,
@@ -29,7 +30,7 @@ class MockDynamicToolManager(ToolInstallerPort):
     def check_if_installed(self, tool: Tool) -> bool:
         return tool.is_installed
 
-    def install_tool(self, tool: Tool) -> bool:
+    def install_tool(self, tool: Tool, config: Config) -> bool:
         self.install_called_for = tool
         tool.is_installed = True
         return True
@@ -101,6 +102,7 @@ def setup(nmap_tool, whois_tool):
     error_fixer = MockErrorFixer()
     logger = MockLogger()
 
+    config = Config(allow_system_install=True)
     use_case = RunToolUseCase(
         parser=RegexCommandParserAdapter(), # Using the real regex parser
         tool_installer=tool_manager,
@@ -108,7 +110,8 @@ def setup(nmap_tool, whois_tool):
         report_generator=report_generator,
         fallback_runner=fallback_runner,
         error_fixer=error_fixer,
-        logger=logger
+        logger=logger,
+        config=config
     )
     return use_case, tool_manager, report_generator, error_fixer, nmap_runner, fallback_runner
 
@@ -161,6 +164,7 @@ async def test_orchestrator_attempts_to_fix_and_rerun_on_failure(nmap_tool):
         return fixed_command
     error_fixer.suggest_fix = suggest_fix_async
 
+    config = Config(allow_system_install=True)
     use_case = RunToolUseCase(
         parser=RegexCommandParserAdapter(),
         tool_installer=tool_manager,
@@ -168,7 +172,8 @@ async def test_orchestrator_attempts_to_fix_and_rerun_on_failure(nmap_tool):
         report_generator=report_generator,
         fallback_runner=MockToolRunner("Fallback"),
         error_fixer=error_fixer,
-        logger=MockLogger()
+        logger=MockLogger(),
+        config=config
     )
 
     # Act

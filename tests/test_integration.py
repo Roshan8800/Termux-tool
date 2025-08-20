@@ -5,6 +5,7 @@ import asyncio
 import re
 from glob import glob
 from termux_cyber_framework.adapters.cli.main import build_use_case
+from termux_cyber_framework.core.domain.config import Config
 from .mocks import MockCommandRunner
 
 @pytest.fixture
@@ -45,7 +46,8 @@ async def test_end_to_end_whois_command(cleanup_files):
         "pkg install whois -y": {"returncode": 0, "stdout": "whois installed"},
         "whois google.com": {"returncode": 0, "stdout": "Registrant Organization: Google LLC"}
     })
-    use_case = build_use_case(command_runner=mock_runner)
+    config = Config(allow_system_install=True)
+    use_case = build_use_case(command_runner=mock_runner, config=config)
     command = "whois google.com"
 
     # Act
@@ -59,9 +61,8 @@ async def test_end_to_end_whois_command(cleanup_files):
     assert "Google LLC" in report.output # Check for expected content in the output
 
     # 2. Assert that a log file was created and contains expected content
-    log_files = glob("logs/*.log")
-    assert len(log_files) == 1
-    with open(log_files[0], 'r') as f:
+    assert os.path.exists("logs/2025-08-20.log")
+    with open("logs/2025-08-20.log", 'r') as f:
         log_content = f.read()
     assert "Received new command: 'whois google.com'" in log_content
     assert "Using runner 'GenericToolRunnerAdapter' for command 'whois'" in log_content
@@ -89,7 +90,8 @@ async def test_end_to_end_git_install_command(cleanup_files, cleanup_cloned_tool
         "git clone https://github.com/sqlmapproject/sqlmap.git tools/sqlmap": {"returncode": 0},
         "python3 tools/sqlmap/sqlmap.py --version": {"returncode": 0, "stdout": "1.8.3"}
     })
-    use_case = build_use_case(command_runner=mock_runner)
+    config = Config(allow_system_install=True)
+    use_case = build_use_case(command_runner=mock_runner, config=config)
     # Using --version is a simple, non-intrusive way to check if sqlmap runs.
     command = "sqlmap --version"
 
@@ -104,5 +106,50 @@ async def test_end_to_end_git_install_command(cleanup_files, cleanup_cloned_tool
     assert re.search(r"\d+\.\d+", report.output)
 
     # 3. Assert log and report files were created
-    assert len(glob("logs/*.log")) == 1
+    assert os.path.exists("logs/2025-08-20.log")
     assert len(glob("reports/sqlmap-*.json")) == 1
+
+
+@pytest.mark.asyncio
+async def test_system_install_disallowed(cleanup_files):
+    """
+    Tests that a system-level installation is blocked when disallowed by policy.
+    """
+    # Arrange
+    mock_runner = MockCommandRunner()
+    config = Config(allow_system_install=False)
+    use_case = build_use_case(command_runner=mock_runner, config=config)
+    command = "whois google.com"
+
+    # Act
+    report = await use_case.execute(command)
+
+    # Assert
+    assert report.success is False
+    assert report.error is not None
+    assert "System-level installation for 'whois' is not allowed by policy" in report.error.message
+
+
+@pytest.mark.asyncio
+async def test_install_logging(cleanup_files):
+    """
+    Tests that installation output is logged correctly.
+    """
+    # Arrange
+    mock_runner = MockCommandRunner({
+        "pkg install whois -y": {"returncode": 0, "stdout": "installing whois...", "stderr": "some warning"}
+    })
+    config = Config(allow_system_install=True)
+    use_case = build_use_case(command_runner=mock_runner, config=config)
+    command = "whois google.com"
+
+    # Act
+    await use_case.execute(command)
+
+    # Assert
+    log_file = "logs/install-whois.log"
+    assert os.path.exists(log_file)
+    with open(log_file, 'r') as f:
+        log_content = f.read()
+    assert "installing whois..." in log_content
+    assert "some warning" in log_content

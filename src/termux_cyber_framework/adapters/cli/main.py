@@ -3,6 +3,7 @@ import typer
 import os
 from termux_cyber_framework.core.use_cases.run_tool_use_case import RunToolUseCase
 from termux_cyber_framework.core.command_runner import CommandRunner
+from termux_cyber_framework.core.domain.config import Config
 from termux_cyber_framework.adapters.command_parser.ai_parser import AICommandParserAdapter
 from termux_cyber_framework.adapters.tool_installer.dynamic_tool_manager import DynamicToolManagerAdapter
 from termux_cyber_framework.adapters.tool_runner.generic_tool_runner import GenericToolRunnerAdapter
@@ -16,11 +17,16 @@ app = typer.Typer(
     help="A natural language-powered cybersecurity framework for Termux."
 )
 
-def build_use_case(command_runner: Optional[CommandRunner] = None) -> RunToolUseCase:
+from termux_cyber_framework.adapters.logger.install_logger import InstallLogger
+
+def build_use_case(command_runner: Optional[CommandRunner] = None, config: Optional[Config] = None, install_logger: Optional[InstallLogger] = None) -> RunToolUseCase:
     """
     Composition Root: Constructs and wires all adapters and use cases.
     """
     # --- Adapters Initialization ---
+
+    config = config or Config()
+    install_logger = install_logger or InstallLogger()
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
     manifest_path = os.path.join(
@@ -28,7 +34,7 @@ def build_use_case(command_runner: Optional[CommandRunner] = None) -> RunToolUse
     )
 
     # The new dynamic manager for tools and adapters
-    tool_manager = DynamicToolManagerAdapter(manifest_path, command_runner=command_runner)
+    tool_manager = DynamicToolManagerAdapter(manifest_path, command_runner=command_runner, install_logger=install_logger)
 
     # The manager now dynamically loads the runners from the manifest
     tool_runners = tool_manager.load_tool_runners()
@@ -49,7 +55,8 @@ def build_use_case(command_runner: Optional[CommandRunner] = None) -> RunToolUse
         report_generator=report_generator,
         fallback_runner=fallback_runner,
         error_fixer=error_fixer,
-        logger=logger # Inject the logger
+        logger=logger, # Inject the logger
+        config=config
     )
 
 @app.command()
