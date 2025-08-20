@@ -124,6 +124,28 @@ class AuditLoggerPort(ABC):
         """
         pass
 
+class ToolCatalogPort(ABC):
+    """
+    A port for getting available tools.
+    """
+    @abstractmethod
+    def get_tools(self) -> List[Tool]:
+        """
+        Returns a list of available tools.
+        """
+        pass
+
+class ConsentPort(ABC):
+    """
+    A port for getting user consent.
+    """
+    @abstractmethod
+    def get_consent(self, command: Command) -> bool:
+        """
+        Gets consent from the user to run a command.
+        """
+        pass
+
 
 class ErrorFixerPort(ABC):
     """

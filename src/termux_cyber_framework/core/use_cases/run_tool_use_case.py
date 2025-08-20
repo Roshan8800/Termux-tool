@@ -12,6 +12,7 @@ from termux_cyber_framework.core.use_cases.ports import (
     LoggerPort,
     DoctorPort,
     AuditLoggerPort,
+    ConsentPort,
     LogLevel
 )
 
@@ -33,7 +34,8 @@ class RunToolUseCase:
         logger: LoggerPort,
         config: Config,
         doctor: DoctorPort,
-        audit_logger: AuditLoggerPort
+        audit_logger: AuditLoggerPort,
+        consent_service: ConsentPort
     ):
         self.parser = parser
         self.tool_installer = tool_installer
@@ -45,6 +47,7 @@ class RunToolUseCase:
         self.config = config
         self.doctor = doctor
         self.audit_logger = audit_logger
+        self.consent_service = consent_service
 
     async def _run_command_flow(self, command: Command) -> ExecutionResult:
         """Helper to run a single command and return its report."""
@@ -91,6 +94,20 @@ class RunToolUseCase:
         try:
             command = await self.parser.parse_command(user_input)
             self.logger.log(f"Parsed command: Tool='{command.tool_name}', Args={command.args}", level=LogLevel.DEBUG)
+
+            if not self.consent_service.get_consent(command):
+                self.logger.log("User did not provide consent. Aborting.", level=LogLevel.WARNING)
+                error = Error(message="User did not provide consent.")
+                now = datetime.now()
+                return ExecutionResult(
+                    command=command,
+                    success=False,
+                    output="",
+                    error=error,
+                    start_time=now,
+                    end_time=now
+                )
+
             result = await self._run_command_flow(command)
 
             # If the first attempt fails, try to fix it

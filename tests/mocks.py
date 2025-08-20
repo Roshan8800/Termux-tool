@@ -2,6 +2,25 @@ import subprocess
 import os
 from typing import List, Optional
 
+from termux_cyber_framework.core.use_cases.ports import ConsentPort
+from termux_cyber_framework.core.domain.models import Command
+
+from termux_cyber_framework.core.use_cases.ports import AuditLoggerPort
+
+class MockAuditLogger(AuditLoggerPort):
+    def __init__(self):
+        self.events = []
+
+    def append(self, event: dict) -> None:
+        self.events.append(event)
+
+class MockConsentService(ConsentPort):
+    def __init__(self, consent_to_give: bool = True):
+        self.consent_to_give = consent_to_give
+
+    def get_consent(self, command: Command) -> bool:
+        return self.consent_to_give
+
 class MockCommandRunner:
     """
     A mock command runner that can be used in tests.

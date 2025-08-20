@@ -11,10 +11,12 @@ from termux_cyber_framework.core.use_cases.ports import (
     ErrorFixerPort,
     LoggerPort,
     DoctorPort,
-    AuditLoggerPort
+    AuditLoggerPort,
+    ConsentPort
 )
 from termux_cyber_framework.core.use_cases.run_tool_use_case import RunToolUseCase
 from termux_cyber_framework.adapters.command_parser.regex_parser import RegexCommandParserAdapter
+from tests.mocks import MockAuditLogger
 
 # --- Mock Adapters for Testing ---
 
@@ -22,9 +24,12 @@ class MockDoctor(DoctorPort):
     def detect_and_fix(self, result: ExecutionResult) -> List[dict]:
         return []
 
-class MockAuditLogger(AuditLoggerPort):
-    def append(self, event: dict) -> None:
-        pass
+class MockConsentService(ConsentPort):
+    def __init__(self, consent_to_give: bool = True):
+        self.consent_to_give = consent_to_give
+
+    def get_consent(self, command: Command) -> bool:
+        return self.consent_to_give
 
 class MockLogger(LoggerPort):
     def log(self, message: str, level: str = "INFO"):
@@ -124,6 +129,7 @@ def setup(nmap_tool, whois_tool):
     config = Config(allow_system_install=True)
     doctor = MockDoctor()
     audit_logger = MockAuditLogger()
+    consent_service = MockConsentService()
     use_case = RunToolUseCase(
         parser=RegexCommandParserAdapter(), # Using the real regex parser
         tool_installer=tool_manager,
@@ -134,7 +140,8 @@ def setup(nmap_tool, whois_tool):
         logger=logger,
         config=config,
         doctor=doctor,
-        audit_logger=audit_logger
+        audit_logger=audit_logger,
+        consent_service=consent_service
     )
     return use_case, tool_manager, report_generator, error_fixer, nmap_runner, fallback_runner
 
@@ -190,6 +197,7 @@ async def test_orchestrator_attempts_to_fix_and_rerun_on_failure(nmap_tool):
     config = Config(allow_system_install=True)
     doctor = MockDoctor()
     audit_logger = MockAuditLogger()
+    consent_service = MockConsentService()
     use_case = RunToolUseCase(
         parser=RegexCommandParserAdapter(),
         tool_installer=tool_manager,
@@ -200,7 +208,8 @@ async def test_orchestrator_attempts_to_fix_and_rerun_on_failure(nmap_tool):
         logger=MockLogger(),
         config=config,
         doctor=doctor,
-        audit_logger=audit_logger
+        audit_logger=audit_logger,
+        consent_service=consent_service
     )
 
     # Act

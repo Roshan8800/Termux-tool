@@ -3,10 +3,11 @@ import os
 import shutil
 import asyncio
 import re
+import json
 from glob import glob
 from termux_cyber_framework.adapters.cli.main import build_use_case
 from termux_cyber_framework.core.domain.config import Config
-from .mocks import MockCommandRunner
+from .mocks import MockCommandRunner, MockConsentService
 from termux_cyber_framework.core.domain.models import ExecutionResult
 
 @pytest.fixture
@@ -48,7 +49,8 @@ async def test_end_to_end_whois_command(cleanup_files):
         "whois google.com": {"returncode": 0, "stdout": "Registrant Organization: Google LLC"}
     })
     config = Config(allow_system_install=True)
-    use_case = build_use_case(command_runner=mock_runner, config=config)
+    consent_service = MockConsentService(consent_to_give=True)
+    use_case = build_use_case(command_runner=mock_runner, config=config, consent_service=consent_service)
     command = "whois google.com"
 
     # Act
@@ -71,11 +73,18 @@ async def test_end_to_end_whois_command(cleanup_files):
     summary_path = result.output_log_file.replace("run.log", "summary.json")
     assert os.path.exists(summary_path)
     with open(summary_path, 'r') as f:
-        report_data = f.read()
-    assert '"tool_name": "whois"' in report_data
-    assert '"raw_command": "whois google.com"' in report_data
-    assert '"success": true' in report_data
-    assert "Registrant Organization: Google LLC" in report_data
+        report_data = json.load(f)
+    assert report_data["command"]["tool_name"] == "whois"
+    assert report_data["success"] is True
+    assert "Google LLC" in report_data["output"]
+
+    # 4. Assert that an audit log event was created
+    audit_log_path = "logs/audit.log"
+    assert os.path.exists(audit_log_path)
+    with open(audit_log_path, 'r') as f:
+        audit_event = json.loads(f.readline())
+    assert audit_event["tool"] == "whois"
+    assert audit_event["command"] == "whois google.com"
 
 
 @pytest.mark.asyncio
@@ -90,7 +99,8 @@ async def test_end_to_end_git_install_command(cleanup_files, cleanup_cloned_tool
         "python3 tools/sqlmap/sqlmap.py --version --batch --threads 1": {"returncode": 0, "stdout": "1.8.3"}
     })
     config = Config(allow_system_install=True)
-    use_case = build_use_case(command_runner=mock_runner, config=config)
+    consent_service = MockConsentService(consent_to_give=True)
+    use_case = build_use_case(command_runner=mock_runner, config=config, consent_service=consent_service)
     # Using --version is a simple, non-intrusive way to check if sqlmap runs.
     command = "sqlmap --version"
 
@@ -106,7 +116,19 @@ async def test_end_to_end_git_install_command(cleanup_files, cleanup_cloned_tool
 
     # 3. Assert log and report files were created
     assert os.path.exists(result.output_log_file)
-    assert os.path.exists(result.output_log_file.replace("run.log", "summary.json"))
+    summary_path = result.output_log_file.replace("run.log", "summary.json")
+    assert os.path.exists(summary_path)
+
+    # 4. Assert that an audit log event was created
+    audit_log_path = "logs/audit.log"
+    assert os.path.exists(audit_log_path)
+    with open(audit_log_path, 'r') as f:
+        # We need to read all lines to find the correct audit event
+        for line in f:
+            audit_event = json.loads(line)
+            if audit_event["tool"] == "sqlmap":
+                assert audit_event["command"] == "sqlmap --version"
+                break
 
 
 @pytest.mark.asyncio
@@ -117,7 +139,8 @@ async def test_system_install_disallowed(cleanup_files):
     # Arrange
     mock_runner = MockCommandRunner()
     config = Config(allow_system_install=False)
-    use_case = build_use_case(command_runner=mock_runner, config=config)
+    consent_service = MockConsentService(consent_to_give=True)
+    use_case = build_use_case(command_runner=mock_runner, config=config, consent_service=consent_service)
     command = "whois google.com"
 
     # Act
@@ -139,7 +162,8 @@ async def test_install_logging(cleanup_files):
         "pkg install whois -y": {"returncode": 0, "stdout": "installing whois...", "stderr": "some warning"}
     })
     config = Config(allow_system_install=True)
-    use_case = build_use_case(command_runner=mock_runner, config=config)
+    consent_service = MockConsentService(consent_to_give=True)
+    use_case = build_use_case(command_runner=mock_runner, config=config, consent_service=consent_service)
     command = "whois google.com"
 
     # Act

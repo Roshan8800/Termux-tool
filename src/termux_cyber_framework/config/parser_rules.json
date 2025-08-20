@@ -1,0 +1,14 @@
+[
+    {
+        "tool_name": "nmap",
+        "pattern": "scan (.+?) with nmap"
+    },
+    {
+        "tool_name": "sqlmap",
+        "pattern": "find sql injection in (.+)"
+    },
+    {
+        "tool_name": "whois",
+        "pattern": "whois (.+)"
+    }
+]
