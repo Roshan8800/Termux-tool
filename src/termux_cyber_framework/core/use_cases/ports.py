@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, List
+from typing import Optional
 from termux_cyber_framework.core.domain.models import Command, Tool, Report
 
 class CommandParserPort(ABC):
@@ -8,75 +8,53 @@ class CommandParserPort(ABC):
     """
     @abstractmethod
     async def parse_command(self, text: str) -> Command:
-        """
-        Parses a natural language string into a structured Command object.
-
-        Args:
-            text: The user's raw input string.
-
-        Returns:
-            A Command object.
-        """
         pass
 
-class ToolManagerPort(ABC):
+class ToolInstallerPort(ABC):
     """
-    A port for managing cybersecurity tools.
+    A port for managing the installation of cybersecurity tools.
     """
     @abstractmethod
     def find_tool(self, name: str) -> Optional[Tool]:
-        """
-        Finds a tool by its name from a known list or registry.
-
-        Args:
-            name: The name of the tool to find.
-
-        Returns:
-            A Tool object if found, otherwise None.
-        """
         pass
 
     @abstractmethod
     def install_tool(self, tool: Tool) -> bool:
-        """
-        Installs the given tool.
-
-        Args:
-            tool: The Tool object to install.
-
-        Returns:
-            True if installation was successful, otherwise False.
-        """
         pass
 
     @abstractmethod
     def check_if_installed(self, tool: Tool) -> bool:
-        """
-        Checks if a tool is already installed on the system.
-
-        Args:
-            tool: The tool to check.
-
-        Returns:
-            True if the tool is installed, otherwise False.
-        """
         pass
-
 
 class ToolRunnerPort(ABC):
     """
-    A port for executing commands in the underlying shell.
+    A port for executing a command for a specific tool.
+    Each tool adapter will implement this port.
     """
     @abstractmethod
-    def run_command(self, tool: Tool, command: Command) -> Report:
+    def run(self, tool: Tool, command: Command) -> Report:
         """
-        Executes a command for a given tool.
+        Runs the given command for the given tool.
 
         Args:
-            tool: The tool that provides the base execution command.
-            command: The specific command to execute, including arguments.
+            tool: The tool definition, containing the base run command.
+            command: The command object containing args.
 
         Returns:
-            A Report object containing the execution results.
+            A Report object with the execution results.
+        """
+        pass
+
+class ReportGeneratorPort(ABC):
+    """
+    A port for generating and outputting a report.
+    """
+    @abstractmethod
+    def generate(self, report: Report) -> None:
+        """
+        Generates and outputs the given report.
+
+        Args:
+            report: The report to be generated.
         """
         pass

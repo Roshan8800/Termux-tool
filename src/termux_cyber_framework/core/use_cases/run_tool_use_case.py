@@ -1,71 +1,73 @@
+from typing import Dict
 from termux_cyber_framework.core.domain.models import Report, Command, Error
-from termux_cyber_framework.core.use_cases.ports import CommandParserPort, ToolManagerPort, ToolRunnerPort
+from termux_cyber_framework.core.use_cases.ports import (
+    CommandParserPort,
+    ToolInstallerPort,
+    ToolRunnerPort,
+    ReportGeneratorPort
+)
 
 class RunToolUseCase:
     """
-    This use case orchestrates the entire process of running a command from user input.
+    Orchestrates the entire process of running a command from user input,
+    using tool-specific adapters.
     """
 
     def __init__(
         self,
         parser: CommandParserPort,
-        tool_manager: ToolManagerPort,
-        tool_runner: ToolRunnerPort,
+        tool_installer: ToolInstallerPort,
+        tool_runners: Dict[str, ToolRunnerPort], # A registry of tool-specific runners
+        report_generator: ReportGeneratorPort,
+        fallback_runner: ToolRunnerPort # A generic runner for tools without a specific adapter
     ):
-        """
-        Initializes the use case with the necessary ports.
-
-        Args:
-            parser: The port for parsing natural language commands.
-            tool_manager: The port for managing tools (finding, installing).
-            tool_runner: The port for executing shell commands.
-        """
         self.parser = parser
-        self.tool_manager = tool_manager
-        self.tool_runner = tool_runner
+        self.tool_installer = tool_installer
+        self.tool_runners = tool_runners
+        self.report_generator = report_generator
+        self.fallback_runner = fallback_runner
 
     async def execute(self, user_input: str) -> Report:
         """
-        Executes the full workflow from parsing input to running the command.
+        Executes the full workflow: parse, find tool, install if needed,
+        select the correct runner, execute, and generate a report.
 
         Args:
             user_input: The raw natural language input from the user.
 
         Returns:
-            A Report object detailing the outcome of the execution.
+            The final Report object.
         """
         try:
-            # 1. Parse the natural language command
+            # 1. Parse the command
             command = await self.parser.parse_command(user_input)
 
-            # 2. Find the required tool from the tool manager
-            tool = self.tool_manager.find_tool(command.tool_name)
+            # 2. Find the tool definition
+            tool = self.tool_installer.find_tool(command.tool_name)
             if not tool:
                 raise ValueError(f"Tool '{command.tool_name}' is not defined in the tool registry.")
 
-            # 3. Check if the tool is installed, and install if not
-            tool.is_installed = self.tool_manager.check_if_installed(tool)
-            if not tool.is_installed:
+            # 3. Ensure the tool is installed
+            if not self.tool_installer.check_if_installed(tool):
                 print(f"[*] Tool '{tool.name}' is not installed. Attempting to install...")
-                install_success = self.tool_manager.install_tool(tool)
-                if not install_success:
+                if not self.tool_installer.install_tool(tool):
                     raise RuntimeError(f"Failed to install tool '{tool.name}'.")
                 print(f"[+] Tool '{tool.name}' installed successfully.")
-                tool.is_installed = True
 
-            # 4. Run the command using the tool runner
-            print(f"[*] Executing command for tool '{tool.name}'...")
-            report = self.tool_runner.run_command(tool, command)
+            # 4. Select the appropriate tool runner (specific or fallback)
+            runner = self.tool_runners.get(tool.name.lower(), self.fallback_runner)
+            print(f"[*] Using runner: {runner.__class__.__name__}")
 
-            if not report.success:
-                print(f"[-] Command failed for tool '{tool.name}'.")
-            else:
-                print(f"[+] Command executed successfully.")
-
-            return report
+            # 5. Execute the command
+            report = runner.run(tool, command)
 
         except (ValueError, RuntimeError) as e:
-            # If any step above fails, create an error report
-            error_command = Command(tool_name="framework", args=[], raw_command=user_input)
+            # Create a generic error report if a step above fails
+            command = Command(tool_name="framework", args=[], raw_command=user_input)
             error = Error(message=str(e))
-            return Report(command=error_command, success=False, output="", error=error)
+            report = Report(command=command, success=False, output="", error=error)
+
+        # 6. Generate the output via the report generator port
+        self.report_generator.generate(report)
+
+        return report # Return the report for any further programmatic use

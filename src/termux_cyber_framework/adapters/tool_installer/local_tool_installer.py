@@ -5,11 +5,11 @@ import subprocess
 from typing import List, Optional
 
 from termux_cyber_framework.core.domain.models import Tool
-from termux_cyber_framework.core.use_cases.ports import ToolManagerPort
+from termux_cyber_framework.core.use_cases.ports import ToolInstallerPort
 
-class LocalToolManagerAdapter(ToolManagerPort):
+class LocalToolInstallerAdapter(ToolInstallerPort):
     """
-    Manages tools based on a local JSON manifest file.
+    Manages tool installation based on a local JSON manifest file.
     """
     def __init__(self, tools_manifest_path: str):
         self._tools = self._load_tools(tools_manifest_path)
