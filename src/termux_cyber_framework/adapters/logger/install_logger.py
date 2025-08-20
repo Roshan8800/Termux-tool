@@ -13,6 +13,7 @@ class InstallLogger:
         """
         Logs the content to a tool-specific installation log file.
         """
-        log_file = os.path.join(self.log_dir, f"install-{tool_name}.log")
-        with open(log_file, "a") as f:
-            f.write(content + "\n")
+        if content:
+            log_file = os.path.join(self.log_dir, f"install-{tool_name}.log")
+            with open(log_file, "a") as f:
+                f.write(content + "\n")

@@ -12,7 +12,11 @@ class MockCommandRunner:
         """
         Mocks the run method.
         """
-        command_str = " ".join(command)
+        if isinstance(command, list):
+            command_str = " ".join(command)
+        else:
+            command_str = command
+
         if command_str in self.mock_results:
             result = self.mock_results[command_str]
             if "exception" in result:

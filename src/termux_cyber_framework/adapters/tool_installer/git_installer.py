@@ -23,20 +23,21 @@ class GitInstallerAdapter(InstallerStrategyPort):
             return False
 
         health_check = tool.install_info.health_check
-        if health_check:
-            try:
-                # Using shell=True for complex commands, be cautious
-                self._command_runner.run(
-                    health_check,
-                    shell=True,
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                    timeout=10
-                )
-            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
-                return False
-        return True
+        if not health_check:
+            return True
+        try:
+            # Using shell=True for complex commands, be cautious
+            self._command_runner.run(
+                health_check,
+                shell=True,
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            return True
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+            return False
 
     def install(self, tool: Tool, config: Config) -> bool:
         """
