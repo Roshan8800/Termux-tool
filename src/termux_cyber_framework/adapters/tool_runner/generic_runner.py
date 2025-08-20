@@ -5,16 +5,18 @@ from termux_cyber_framework.core.domain.models import Command, Tool, ExecutionRe
 from termux_cyber_framework.core.use_cases.ports import ToolRunnerPort
 from termux_cyber_framework.core.command_runner import CommandRunner
 
-class NmapAdapter(ToolRunnerPort):
+class GenericRunner(ToolRunnerPort):
     """
-    A specific ToolRunnerPort implementation for the Nmap tool.
+    A generic adapter that runs any tool command in the local shell.
+    This serves as a fallback for tools without a specific adapter.
     """
     def __init__(self, command_runner: CommandRunner = None, reports_dir="reports"):
         self._command_runner = command_runner or CommandRunner()
         self.reports_dir = reports_dir
 
     def run(self, tool: Tool, command: Command) -> ExecutionResult:
-        full_command = [tool.run_command] + command.args
+        base_command_parts = tool.run_command.split()
+        full_command = base_command_parts + command.args
 
         now = datetime.now()
         date_str = now.strftime("%Y-%m-%d")
@@ -29,7 +31,7 @@ class NmapAdapter(ToolRunnerPort):
         try:
             process = self._command_runner.run(
                 full_command,
-                timeout=600, # 10-minute timeout for potentially long scans
+                timeout=300, # 5-minute timeout
                 output_log_file=output_log_file
             )
 
@@ -64,7 +66,7 @@ class NmapAdapter(ToolRunnerPort):
 
         except FileNotFoundError:
             end_time = datetime.now()
-            error = Error(message="Command 'nmap' not found. Is it installed and in PATH?")
+            error = Error(message=f"Command not found: {tool.run_command}. Is it installed and in PATH?")
             return ExecutionResult(
                 command=command,
                 success=False,
@@ -76,7 +78,7 @@ class NmapAdapter(ToolRunnerPort):
             )
         except subprocess.TimeoutExpired as e:
             end_time = datetime.now()
-            error_message = f"Nmap command timed out after {e.timeout} seconds."
+            error_message = f"Command timed out after {e.timeout} seconds."
             if e.stdout:
                 error_message += f"\nOutput:\n{e.stdout}"
             error = Error(message=error_message)

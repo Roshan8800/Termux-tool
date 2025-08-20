@@ -1,4 +1,5 @@
 import subprocess
+import os
 from typing import List, Optional
 
 class MockCommandRunner:
@@ -21,15 +22,33 @@ class MockCommandRunner:
             result = self.mock_results[command_str]
             if "exception" in result:
                 raise result["exception"]
-            return subprocess.CompletedProcess(
+
+            if 'output_log_file' in kwargs:
+                log_file = kwargs['output_log_file']
+                log_dir = os.path.dirname(log_file)
+                if not os.path.exists(log_dir):
+                    os.makedirs(log_dir)
+                with open(log_file, "w") as f:
+                    f.write(f"--- Running command: {command_str} ---\n")
+                    f.write("\n--- STDOUT ---\n")
+                    f.write(result.get("stdout", ""))
+                    f.write("\n--- STDERR ---\n")
+                    f.write(result.get("stderr", ""))
+
+            process = subprocess.CompletedProcess(
                 args=command,
                 returncode=result.get("returncode", 0),
                 stdout=result.get("stdout", ""),
                 stderr=result.get("stderr", ""),
             )
-        return subprocess.CompletedProcess(
+            process.pid = 1234
+            return process
+
+        process = subprocess.CompletedProcess(
             args=command,
             returncode=0,
             stdout="",
             stderr="",
         )
+        process.pid = 1234
+        return process

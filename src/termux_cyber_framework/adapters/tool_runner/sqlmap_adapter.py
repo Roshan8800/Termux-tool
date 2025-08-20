@@ -5,9 +5,9 @@ from termux_cyber_framework.core.domain.models import Command, Tool, ExecutionRe
 from termux_cyber_framework.core.use_cases.ports import ToolRunnerPort
 from termux_cyber_framework.core.command_runner import CommandRunner
 
-class NmapAdapter(ToolRunnerPort):
+class SqlmapAdapter(ToolRunnerPort):
     """
-    A specific ToolRunnerPort implementation for the Nmap tool.
+    A specific ToolRunnerPort implementation for the Sqlmap tool.
     """
     def __init__(self, command_runner: CommandRunner = None, reports_dir="reports"):
         self._command_runner = command_runner or CommandRunner()
@@ -29,7 +29,7 @@ class NmapAdapter(ToolRunnerPort):
         try:
             process = self._command_runner.run(
                 full_command,
-                timeout=600, # 10-minute timeout for potentially long scans
+                timeout=600, # 10-minute timeout
                 output_log_file=output_log_file
             )
 
@@ -64,7 +64,7 @@ class NmapAdapter(ToolRunnerPort):
 
         except FileNotFoundError:
             end_time = datetime.now()
-            error = Error(message="Command 'nmap' not found. Is it installed and in PATH?")
+            error = Error(message="Command 'sqlmap' not found. Is it installed and in PATH?")
             return ExecutionResult(
                 command=command,
                 success=False,
@@ -76,7 +76,7 @@ class NmapAdapter(ToolRunnerPort):
             )
         except subprocess.TimeoutExpired as e:
             end_time = datetime.now()
-            error_message = f"Nmap command timed out after {e.timeout} seconds."
+            error_message = f"Sqlmap command timed out after {e.timeout} seconds."
             if e.stdout:
                 error_message += f"\nOutput:\n{e.stdout}"
             error = Error(message=error_message)

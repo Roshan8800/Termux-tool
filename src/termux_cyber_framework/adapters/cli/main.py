@@ -6,7 +6,7 @@ from termux_cyber_framework.core.command_runner import CommandRunner
 from termux_cyber_framework.core.domain.config import Config
 from termux_cyber_framework.adapters.command_parser.ai_parser import AICommandParserAdapter
 from termux_cyber_framework.adapters.tool_installer.dynamic_tool_manager import DynamicToolManagerAdapter
-from termux_cyber_framework.adapters.tool_runner.generic_tool_runner import GenericToolRunnerAdapter
+from termux_cyber_framework.adapters.tool_runner.generic_runner import GenericRunner
 from termux_cyber_framework.adapters.report_generator.file_report_generator import FileReportGenerator
 from termux_cyber_framework.adapters.error_fixer.simple_ai_fixer import SimpleAiFixerAdapter
 from termux_cyber_framework.adapters.logger.file_logger import FileLoggerAdapter
@@ -38,12 +38,15 @@ def build_use_case(command_runner: Optional[CommandRunner] = None, config: Optio
 
     # The manager now dynamically loads the runners from the manifest
     tool_runners = tool_manager.load_tool_runners()
+    for runner in tool_runners.values():
+        if hasattr(runner, "_command_runner"):
+            runner._command_runner = command_runner
 
     # Other adapters
     parser = AICommandParserAdapter() # Use the new AI-based parser
     report_generator = FileReportGenerator() # Use the new file-based reporter
     error_fixer = SimpleAiFixerAdapter()
-    fallback_runner = GenericToolRunnerAdapter(command_runner=command_runner)
+    fallback_runner = GenericRunner(command_runner=command_runner)
     logger = FileLoggerAdapter() # Use the new file-based logger
 
     # --- Use Case Construction ---

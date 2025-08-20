@@ -1,5 +1,6 @@
 from typing import Dict, Optional
-from termux_cyber_framework.core.domain.models import Report, Command, Error, Tool, InstallInfo
+from datetime import datetime
+from termux_cyber_framework.core.domain.models import ExecutionResult, Command, Error, Tool, InstallInfo
 from termux_cyber_framework.core.domain.config import Config
 from termux_cyber_framework.core.use_cases.ports import (
     CommandParserPort,
@@ -38,7 +39,7 @@ class RunToolUseCase:
         self.logger = logger
         self.config = config
 
-    async def _run_command_flow(self, command: Command) -> Report:
+    async def _run_command_flow(self, command: Command) -> ExecutionResult:
         """Helper to run a single command and return its report."""
         self.logger.log(f"Finding tool '{command.tool_name}'.")
         tool = self.tool_installer.find_tool(command.tool_name)
@@ -65,12 +66,12 @@ class RunToolUseCase:
 
         runner = self.tool_runners.get(tool.name.lower(), self.fallback_runner)
         self.logger.log(f"Using runner '{runner.__class__.__name__}' for command '{command.tool_name}'.")
-        report = runner.run(tool, command)
-        self.logger.log(f"Command execution finished. Success: {report.success}", level=LogLevel.DEBUG)
-        return report
+        result = runner.run(tool, command)
+        self.logger.log(f"Command execution finished. Success: {result.success}", level=LogLevel.DEBUG)
+        return result
 
 
-    async def execute(self, user_input: str) -> Report:
+    async def execute(self, user_input: str) -> ExecutionResult:
         """
         Executes the full workflow, now with an attempt to fix errors.
         """
@@ -78,16 +79,16 @@ class RunToolUseCase:
         try:
             command = await self.parser.parse_command(user_input)
             self.logger.log(f"Parsed command: Tool='{command.tool_name}', Args={command.args}", level=LogLevel.DEBUG)
-            report = await self._run_command_flow(command)
+            result = await self._run_command_flow(command)
 
             # If the first attempt fails, try to fix it
-            if not report.success and report.error:
+            if not result.success and result.error:
                 self.logger.log("Initial command failed. Consulting AI error fixer...", level=LogLevel.WARNING)
-                fixed_command = await self.error_fixer.suggest_fix(report.error, command)
+                fixed_command = await self.error_fixer.suggest_fix(result.error, command)
 
                 if fixed_command:
                     self.logger.log(f"AI suggests a fix: '{fixed_command.raw_command}'. Retrying...")
-                    report = await self._run_command_flow(fixed_command)
+                    result = await self._run_command_flow(fixed_command)
                 else:
                     self.logger.log("AI had no suggestion. Reporting initial failure.")
 
@@ -95,8 +96,16 @@ class RunToolUseCase:
             self.logger.log(f"A critical error occurred: {e}", level=LogLevel.ERROR)
             command = Command(tool_name="framework", args=[], raw_command=user_input)
             error = Error(message=str(e))
-            report = Report(command=command, success=False, output="", error=error)
+            now = datetime.now()
+            result = ExecutionResult(
+                command=command,
+                success=False,
+                output="",
+                error=error,
+                start_time=now,
+                end_time=now
+            )
 
         self.logger.log("Generating report.")
-        self.report_generator.generate(report)
-        return report
+        self.report_generator.generate(result)
+        return result

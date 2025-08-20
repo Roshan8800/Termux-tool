@@ -1,6 +1,7 @@
 import pytest
 from typing import Optional, List, Dict
-from termux_cyber_framework.core.domain.models import Command, Tool, Report, Error, InstallInfo
+from datetime import datetime
+from termux_cyber_framework.core.domain.models import Command, Tool, ExecutionResult, Error, InstallInfo
 from termux_cyber_framework.core.domain.config import Config
 from termux_cyber_framework.core.use_cases.ports import (
     ToolInstallerPort,
@@ -46,28 +47,33 @@ class MockToolRunner(ToolRunnerPort):
         self.call_count = 0
         self.fail_on_first_run = fail_on_first_run
 
-    def run(self, tool: Tool, command: Command) -> Report:
+    def run(self, tool: Tool, command: Command) -> ExecutionResult:
         self.call_count += 1
+        now = datetime.now()
         if self.fail_on_first_run and self.call_count == 1:
-            return Report(
+            return ExecutionResult(
                 command=command,
                 success=False,
                 output="Permission denied",
-                error=Error(message="Permission denied")
+                error=Error(message="Permission denied"),
+                start_time=now,
+                end_time=now
             )
-        return Report(
+        return ExecutionResult(
             command=command,
             success=True,
             output=f"Executed by {self.runner_name}",
-            error=None
+            error=None,
+            start_time=now,
+            end_time=now
         )
 
 class MockReportGenerator(ReportGeneratorPort):
     def __init__(self):
-        self.generate_called_with: Optional[Report] = None
+        self.generate_called_with: Optional[ExecutionResult] = None
 
-    def generate(self, report: Report) -> None:
-        self.generate_called_with = report
+    def generate(self, result: ExecutionResult) -> None:
+        self.generate_called_with = result
 
 class MockErrorFixer(ErrorFixerPort):
     async def suggest_fix(self, error: Error, command: Command) -> Optional[Command]:

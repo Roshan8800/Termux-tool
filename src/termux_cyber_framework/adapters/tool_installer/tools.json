@@ -19,7 +19,7 @@
             "health_check": "python3 tools/sqlmap/sqlmap.py --version"
         },
         "run_command": "python3 tools/sqlmap/sqlmap.py",
-        "adapter_class": null
+        "adapter_class": "termux_cyber_framework.adapters.tool_runner.sqlmap_adapter.SqlmapAdapter"
     },
     {
         "name": "whois",

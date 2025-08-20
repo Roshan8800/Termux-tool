@@ -7,6 +7,7 @@ from glob import glob
 from termux_cyber_framework.adapters.cli.main import build_use_case
 from termux_cyber_framework.core.domain.config import Config
 from .mocks import MockCommandRunner
+from termux_cyber_framework.core.domain.models import ExecutionResult
 
 @pytest.fixture
 def cleanup_files():
@@ -52,21 +53,19 @@ async def test_end_to_end_whois_command(cleanup_files):
 
     # Act
     # Execute the command through the orchestrator
-    report = await use_case.execute(command)
+    result = await use_case.execute(command)
 
     # Assert
     # 1. Assert the command was successful
-    assert report.success is True
-    assert report.error is None
-    assert "Google LLC" in report.output # Check for expected content in the output
+    assert result.success is True
+    assert result.error is None
+    assert "Google LLC" in result.output # Check for expected content in the output
 
     # 2. Assert that a log file was created and contains expected content
-    assert os.path.exists("logs/2025-08-20.log")
-    with open("logs/2025-08-20.log", 'r') as f:
+    assert os.path.exists(result.output_log_file)
+    with open(result.output_log_file, 'r') as f:
         log_content = f.read()
-    assert "Received new command: 'whois google.com'" in log_content
-    assert "Using runner 'GenericToolRunnerAdapter' for command 'whois'" in log_content
-    assert "Generating report." in log_content
+    assert "whois google.com" in log_content
 
     # 3. Assert that a report file was created and contains expected content
     report_files = glob("reports/whois-*.json")
@@ -96,17 +95,17 @@ async def test_end_to_end_git_install_command(cleanup_files, cleanup_cloned_tool
     command = "sqlmap --version"
 
     # Act
-    report = await use_case.execute(command)
+    result = await use_case.execute(command)
 
     # Assert
     # 1. Assert that the command was successful
-    assert report.success is True
-    assert report.error is None
+    assert result.success is True
+    assert result.error is None
     # Check for a version string in the output
-    assert re.search(r"\d+\.\d+", report.output)
+    assert re.search(r"\d+\.\d+", result.output)
 
     # 3. Assert log and report files were created
-    assert os.path.exists("logs/2025-08-20.log")
+    assert os.path.exists(result.output_log_file)
     assert len(glob("reports/sqlmap-*.json")) == 1
 
 
@@ -122,12 +121,12 @@ async def test_system_install_disallowed(cleanup_files):
     command = "whois google.com"
 
     # Act
-    report = await use_case.execute(command)
+    result = await use_case.execute(command)
 
     # Assert
-    assert report.success is False
-    assert report.error is not None
-    assert "System-level installation for 'whois' is not allowed by policy" in report.error.message
+    assert result.success is False
+    assert result.error is not None
+    assert "System-level installation for 'whois' is not allowed by policy" in result.error.message
 
 
 @pytest.mark.asyncio

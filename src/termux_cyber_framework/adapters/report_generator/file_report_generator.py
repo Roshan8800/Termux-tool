@@ -1,7 +1,7 @@
 import os
 import json
 from datetime import datetime
-from termux_cyber_framework.core.domain.models import Report
+from termux_cyber_framework.core.domain.models import ExecutionResult
 from termux_cyber_framework.core.use_cases.ports import ReportGeneratorPort
 
 class FileReportGenerator(ReportGeneratorPort):
@@ -13,16 +13,16 @@ class FileReportGenerator(ReportGeneratorPort):
         if not os.path.exists(self.reports_dir):
             os.makedirs(self.reports_dir)
 
-    def generate(self, report: Report) -> None:
+    def generate(self, result: ExecutionResult) -> None:
         """
         Saves the given report to a file in the reports directory.
         The filename includes the tool name and a timestamp.
 
         Args:
-            report: The report to be saved.
+            result: The execution result to be saved.
         """
-        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-        tool_name = report.command.tool_name
+        timestamp = result.end_time.strftime('%Y%m%d%H%M%S')
+        tool_name = result.command.tool_name
         # Sanitize tool_name for the filename
         safe_tool_name = "".join(c for c in tool_name if c.isalnum() or c in ('_', '-')).rstrip()
 
@@ -32,16 +32,16 @@ class FileReportGenerator(ReportGeneratorPort):
         try:
             # Use Pydantic's model_dump_json for clean serialization
             with open(filepath, 'w') as f:
-                f.write(report.model_dump_json(indent=4))
+                f.write(result.model_dump_json(indent=4))
 
             # Also print a summary to the console for immediate feedback
             print(f"\n--- Execution Report ---")
-            print(f"[*] Command: {report.command.raw_command}")
-            print(f"[*] Success: {report.success}")
-            if report.success:
-                print(f"[*] Output:\n{report.output[:500]}...") # Print first 500 chars
+            print(f"[*] Command: {result.command.raw_command}")
+            print(f"[*] Success: {result.success}")
+            if result.success:
+                print(f"[*] Output:\n{result.output[:500]}...") # Print first 500 chars
             else:
-                print(f"[*] Error:\n{report.error.message}")
+                print(f"[*] Error:\n{result.error.message}")
             print(f"[+] Report saved to: {filepath}")
 
         except Exception as e:

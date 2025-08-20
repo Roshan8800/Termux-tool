@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Optional
-from termux_cyber_framework.core.domain.models import Command, Tool, Report, Error
+from termux_cyber_framework.core.domain.models import Command, Tool, ExecutionResult, Error
 from termux_cyber_framework.core.domain.config import Config
 from enum import Enum
 
@@ -71,7 +71,7 @@ class ToolRunnerPort(ABC):
     Each tool adapter will implement this port.
     """
     @abstractmethod
-    def run(self, tool: Tool, command: Command) -> Report:
+    def run(self, tool: Tool, command: Command) -> ExecutionResult:
         """
         Runs the given command for the given tool.
 
@@ -80,7 +80,7 @@ class ToolRunnerPort(ABC):
             command: The command object containing args.
 
         Returns:
-            A Report object with the execution results.
+            A ExecutionResult object with the execution results.
         """
         pass
 
@@ -89,12 +89,12 @@ class ReportGeneratorPort(ABC):
     A port for generating and outputting a report.
     """
     @abstractmethod
-    def generate(self, report: Report) -> None:
+    def generate(self, result: ExecutionResult) -> None:
         """
         Generates and outputs the given report.
 
         Args:
-            report: The report to be generated.
+            result: The execution result to be generated.
         """
         pass
 

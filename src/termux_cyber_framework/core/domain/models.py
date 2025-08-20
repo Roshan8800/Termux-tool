@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
+from datetime import datetime
 
 class InstallInfo(BaseModel):
     """
@@ -40,7 +41,7 @@ class Error(BaseModel):
     message: str = Field(..., description="The error message or stderr output.")
     fix_suggestion: Optional[str] = Field(None, description="A potential fix or suggestion for the error.")
 
-class Report(BaseModel):
+class ExecutionResult(BaseModel):
     """
     Represents the result of a command execution.
     """
@@ -48,3 +49,7 @@ class Report(BaseModel):
     success: bool = Field(..., description="Whether the command executed successfully.")
     output: str = Field(..., description="The stdout from the command execution.")
     error: Optional[Error] = Field(None, description="Details of the error if the command failed.")
+    start_time: datetime = Field(..., description="The timestamp when the command started.")
+    end_time: datetime = Field(..., description="The timestamp when the command ended.")
+    pid: Optional[int] = Field(None, description="The process ID of the command.")
+    output_log_file: Optional[str] = Field(None, description="The path to the log file containing the command's output.")
