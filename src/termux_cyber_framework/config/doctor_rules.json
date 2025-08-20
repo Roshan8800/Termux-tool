@@ -1,0 +1,16 @@
+[
+    {
+        "id": "openssl_missing",
+        "pattern": "openssl/ssl.h: No such file",
+        "explain": "The OpenSSL development headers are missing.",
+        "commands": ["pkg install -y openssl"],
+        "require_confirm": false
+    },
+    {
+        "id": "python_requests_missing",
+        "pattern": "No module named 'requests'",
+        "explain": "The 'requests' Python module is not installed.",
+        "commands": ["pip install requests"],
+        "require_confirm": true
+    }
+]

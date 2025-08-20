@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, List
 from termux_cyber_framework.core.domain.models import Command, Tool, ExecutionResult, Error
 from termux_cyber_framework.core.domain.config import Config
 from enum import Enum
@@ -115,5 +115,17 @@ class ErrorFixerPort(ABC):
         Returns:
             A new Command object with a suggested fix, or None if no fix
             can be determined.
+        """
+        pass
+
+
+class DoctorPort(ABC):
+    """
+    A port for detecting and fixing common issues.
+    """
+    @abstractmethod
+    def detect_and_fix(self, result: ExecutionResult) -> List[dict]:
+        """
+        Inspects the result of a command execution and applies fixes.
         """
         pass

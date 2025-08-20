@@ -8,12 +8,17 @@ from termux_cyber_framework.core.use_cases.ports import (
     ToolRunnerPort,
     ReportGeneratorPort,
     ErrorFixerPort,
-    LoggerPort
+    LoggerPort,
+    DoctorPort
 )
 from termux_cyber_framework.core.use_cases.run_tool_use_case import RunToolUseCase
 from termux_cyber_framework.adapters.command_parser.regex_parser import RegexCommandParserAdapter
 
 # --- Mock Adapters for Testing ---
+
+class MockDoctor(DoctorPort):
+    def detect_and_fix(self, result: ExecutionResult) -> List[dict]:
+        return []
 
 class MockLogger(LoggerPort):
     def log(self, message: str, level: str = "INFO"):
@@ -109,6 +114,7 @@ def setup(nmap_tool, whois_tool):
     logger = MockLogger()
 
     config = Config(allow_system_install=True)
+    doctor = MockDoctor()
     use_case = RunToolUseCase(
         parser=RegexCommandParserAdapter(), # Using the real regex parser
         tool_installer=tool_manager,
@@ -117,7 +123,8 @@ def setup(nmap_tool, whois_tool):
         fallback_runner=fallback_runner,
         error_fixer=error_fixer,
         logger=logger,
-        config=config
+        config=config,
+        doctor=doctor
     )
     return use_case, tool_manager, report_generator, error_fixer, nmap_runner, fallback_runner
 
@@ -171,6 +178,7 @@ async def test_orchestrator_attempts_to_fix_and_rerun_on_failure(nmap_tool):
     error_fixer.suggest_fix = suggest_fix_async
 
     config = Config(allow_system_install=True)
+    doctor = MockDoctor()
     use_case = RunToolUseCase(
         parser=RegexCommandParserAdapter(),
         tool_installer=tool_manager,
@@ -179,7 +187,8 @@ async def test_orchestrator_attempts_to_fix_and_rerun_on_failure(nmap_tool):
         fallback_runner=MockToolRunner("Fallback"),
         error_fixer=error_fixer,
         logger=MockLogger(),
-        config=config
+        config=config,
+        doctor=doctor
     )
 
     # Act

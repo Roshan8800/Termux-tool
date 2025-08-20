@@ -10,6 +10,7 @@ from termux_cyber_framework.adapters.tool_runner.generic_runner import GenericRu
 from termux_cyber_framework.adapters.report_generator.file_report_generator import FileReportGenerator
 from termux_cyber_framework.adapters.error_fixer.simple_ai_fixer import SimpleAiFixerAdapter
 from termux_cyber_framework.adapters.logger.file_logger import FileLoggerAdapter
+from termux_cyber_framework.adapters.doctor.regex_doctor import RegexDoctorAdapter
 from typing import Optional
 
 app = typer.Typer(
@@ -48,6 +49,11 @@ def build_use_case(command_runner: Optional[CommandRunner] = None, config: Optio
     error_fixer = SimpleAiFixerAdapter()
     fallback_runner = GenericRunner(command_runner=command_runner)
     logger = FileLoggerAdapter() # Use the new file-based logger
+    doctor = RegexDoctorAdapter(
+        rules_path=os.path.join(base_dir, "..", "..", "config", "doctor_rules.json"),
+        command_runner=command_runner,
+        logger=logger
+    )
 
     # --- Use Case Construction ---
 
@@ -59,7 +65,8 @@ def build_use_case(command_runner: Optional[CommandRunner] = None, config: Optio
         fallback_runner=fallback_runner,
         error_fixer=error_fixer,
         logger=logger, # Inject the logger
-        config=config
+        config=config,
+        doctor=doctor
     )
 
 @app.command()

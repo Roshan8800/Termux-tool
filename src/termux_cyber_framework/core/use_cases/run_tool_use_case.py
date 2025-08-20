@@ -9,6 +9,7 @@ from termux_cyber_framework.core.use_cases.ports import (
     ReportGeneratorPort,
     ErrorFixerPort,
     LoggerPort,
+    DoctorPort,
     LogLevel
 )
 
@@ -28,7 +29,8 @@ class RunToolUseCase:
         fallback_runner: ToolRunnerPort,
         error_fixer: ErrorFixerPort,
         logger: LoggerPort,
-        config: Config
+        config: Config,
+        doctor: DoctorPort
     ):
         self.parser = parser
         self.tool_installer = tool_installer
@@ -38,6 +40,7 @@ class RunToolUseCase:
         self.error_fixer = error_fixer
         self.logger = logger
         self.config = config
+        self.doctor = doctor
 
     async def _run_command_flow(self, command: Command) -> ExecutionResult:
         """Helper to run a single command and return its report."""
@@ -105,6 +108,14 @@ class RunToolUseCase:
                 start_time=now,
                 end_time=now
             )
+
+        if not result.success:
+            self.logger.log("Command failed, running doctor.", level=LogLevel.INFO)
+            fixes = self.doctor.detect_and_fix(result)
+            if fixes:
+                self.logger.log(f"Doctor found {len(fixes)} potential fixes.", level=LogLevel.INFO)
+                # For now, we just log the fixes. A more advanced implementation
+                # could present them to the user or attempt to re-run the command.
 
         self.logger.log("Generating report.")
         self.report_generator.generate(result)

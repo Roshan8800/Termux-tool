@@ -1,0 +1,11 @@
+[
+    {
+        "id": "openssl_missing",
+        "pattern": "openssl/ssl.h: No such file",
+        "explain": "The OpenSSL development headers are missing. These are required to compile some tools.",
+        "commands": [
+            "pkg install -y openssl"
+        ],
+        "require_confirm": false
+    }
+]
