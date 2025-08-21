@@ -2,114 +2,109 @@
 
 **Created by Roshan**
 
-A natural language-powered cybersecurity framework for Termux.
+A professional, AI-powered cybersecurity framework designed for simplicity and extensibility. Run complex tools with simple, natural language commands.
+
+![CLI Screenshot](https://i.imgur.com/your-screenshot.png) <!-- Placeholder for a real screenshot -->
 
 ## Overview
 
-This framework allows users to run cybersecurity tools using natural language commands. It is designed to be extensible, allowing new tools and features to be added easily.
+This framework allows users to run a variety of cybersecurity tools using natural language commands. It leverages the Google Gemini API to interpret your intent, select the appropriate tool, and execute it. It's designed to be extensible, secure, and user-friendly, with a focus on clear reporting and user consent for potentially dangerous operations.
 
-## Getting Started
+## Key Features
+
+- **AI-Powered Command Interpretation:** Simply tell the framework what you want to do in plain English (e.g., `"scan example.com for open ports"`).
+- **Cross-Platform Support:** Works on various Debian-based systems, including **Termux**, **Kali Linux**, and **Parrot OS**.
+- **Automated Tool Installation:** The framework automatically installs the necessary tools on-demand using the appropriate package manager (`apt-get` or `pkg`).
+- **Enhanced Reporting:** Generates detailed reports for every operation in both `.txt` and `.json` formats, including metadata like execution time, AI interpretation, and user consent.
+- **User Consent Flow:** For potentially dangerous operations (e.g., `sqlmap`), the framework will prompt for explicit user consent before proceeding.
+- **Modular Architecture:** Easily extend the framework by adding new tools to the tool catalog.
+
+---
+
+## Installation
+
+Getting the framework up and running is simple.
 
 ### Prerequisites
 
-- Python 3.11+
-- Termux (for Android) or a Debian-based Linux distribution.
+- **Python 3.11+**
+- **Git**
+- An active internet connection for downloading tools and accessing the AI API.
+- A supported operating system (Termux, Kali Linux, Parrot OS).
 
-### Installation
+### Step 1: Clone the Repository
 
-1.  Clone the repository:
-    ```
-    git clone https://github.com/user/termux-cyber-framework.git
-    cd termux-cyber-framework
-    ```
-2.  Install the dependencies:
-    ```
-    pip install -r requirements.txt
-    ```
+First, clone the repository to your local machine using Git.
 
-## Usage
-
-To run a command, use the `run` command followed by a natural language query:
-
+```bash
+git clone https://github.com/your-repo/termux-cyber-framework.git
+cd termux-cyber-framework
 ```
-python -m termux_cyber_framework.adapters.cli.main run "scan example.com for open ports with nmap"
+
+### Step 2: Install Dependencies
+
+Install the required Python libraries using `pip`.
+
+```bash
+pip install -r requirements.txt
+```
+
+**Note for Linux Users (Kali, Parrot):**
+On desktop Linux systems, some tool installations performed by the framework may require root privileges. The framework will automatically use `sudo` for these commands if it is available. You may be prompted for your password during tool installation.
+
+---
+
+## How to Use
+
+The framework is designed to be intuitive. You interact with it using the `run` command followed by your command in plain English.
+
+### Basic Usage
+
+To run a command, use the following structure:
+```bash
+python -m src.termux_cyber_framework.main run "your natural language command"
+```
+
+### Examples
+
+Here are a few examples of how you can use the framework:
+
+**1. Scan for open ports on a domain:**
+```bash
+python -m src.termux_cyber_framework.main run "scan example.com for open ports with nmap"
+```
+
+**2. Check a website for SQL injection vulnerabilities:**
+```bash
+python -m src.termux_cyber_framework.main run "check example.com for SQL injection"
+```
+*(This is a dangerous command and will trigger a consent prompt.)*
+
+**3. Get WHOIS information for a domain:**
+```bash
+python -m src.termux_cyber_framework.main run "whois google.com"
 ```
 
 ### Dry-Run Mode
 
-The framework supports a `--dry-run` flag that allows you to see what commands would be executed without actually running them. This is useful for testing and for CI environments.
+If you want to see what the AI will interpret your command as without actually executing it, use the `--dry-run` flag. This is great for testing or learning how the framework works.
 
-```
-python -m termux_cyber_framework.adapters.cli.main run "scan example.com for open ports with nmap" --dry-run
+```bash
+python -m src.termux_cyber_framework.main run "scan example.com for open ports" --dry-run
 ```
 
-### Sample Output
+### Understanding the Output
 
-```
---- Execution Report ---
-Tool: nmap
-Target: example.com
-Status: Success
-Report saved: reports/nmap/2025-08-20-1530.txt
-```
+After each command, you will receive a summary report in your console. Detailed reports in both `.txt` and `.json` format will be saved in the `reports/` directory, organized by date and tool name.
+
+---
 
 ## Architecture
 
-The framework is built using a hexagonal architecture, with a core domain that is independent of the adapters. The main components are:
+The framework is built using a hexagonal architecture, with a core domain that is independent of the adapters. This keeps the core logic clean and makes the framework easy to maintain and extend.
 
 - **Core**: Contains the domain models, use cases, and ports.
-- **Adapters**: Implement the ports and provide the concrete implementations for the framework's features.
-- **CLI**: The command-line interface, built with Typer.
+- **Adapters**: Implement the ports and provide the concrete implementations for the framework's features (e.g., AI Interpreter, Reporters, Tool Installers).
+- **CLI**: The command-line interface, built with `Typer` and `rich`.
 
-The `main.py` file in the `adapters/cli` directory acts as the composition root, where all the adapters are instantiated and wired together.
-
-## How to Add Tools
-
-To add a new tool, you need to add an entry to the `data/tool_catalog.json` file. Each entry should have the following format:
-
-```json
-{
-    "name": "tool_name",
-    "description": "A description of the tool.",
-    "install_info": {
-        "method": "installation_method",
-        "source": "installation_source"
-    },
-    "run_command": "base_run_command",
-    "adapter_class": "full.path.to.adapter.class"
-}
-```
-
-- `name`: The name of the tool.
-- `description`: A brief description of the tool.
-- `install_info`: An object with the installation method (`git`, `pip`, `pkg`) and source (URL, package name).
-- `run_command`: The base command to execute the tool.
-- `adapter_class`: The full import path to the tool's specific adapter class. If this is `null`, the `GenericRunner` will be used.
-
-## How to Add Doctor Rules
-
-To add a new doctor rule, you need to add an entry to the `config/doctor_rules.json` file. Each entry should have the following format:
-
-```json
-{
-    "id": "rule_id",
-    "pattern": "regex_pattern",
-    "explain": "Explanation of the issue.",
-    "commands": ["command_to_fix_the_issue"],
-    "require_confirm": true
-}
-```
-
-- `id`: a unique identifier for the rule.
-- `pattern`: a regex pattern to match against the tool's output.
-- `explain`: an explanation of the issue and the proposed fix.
-- `commands`: a list of commands to run to fix the issue.
-- `require_confirm`: a boolean indicating whether the user's confirmation is required before applying the fix.
-
-## Future Ideas
-
-- Plugin system for new tools and adapters.
-- Persistence to a database instead of JSON files.
-- Multi-user support with more granular consent and audit logs.
-- More advanced AI features for command parsing and error fixing.
-- Web interface for easier use.
+The `main.py` file in the `src/termux_cyber_framework/adapters/cli` directory acts as the **Composition Root**, where all the adapters are instantiated and wired together.
