@@ -1,3 +1,4 @@
-typer
 pydantic
-ipaddress
+typer
+rich
+google-generativeai
