@@ -4,6 +4,9 @@ from datetime import datetime
 from termux_cyber_framework.core.domain.models import ExecutionResult
 from termux_cyber_framework.core.use_cases.ports import ReportGeneratorPort
 from termux_cyber_framework.core.domain.run_paths import RunPaths
+from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
 
 class JsonReporter(ReportGeneratorPort):
     """
@@ -11,6 +14,7 @@ class JsonReporter(ReportGeneratorPort):
     """
     def __init__(self, reports_dir="reports"):
         self.reports_dir = reports_dir
+        self.console = Console()
         if not os.path.exists(self.reports_dir):
             os.makedirs(self.reports_dir)
 
@@ -54,9 +58,9 @@ class JsonReporter(ReportGeneratorPort):
                     f.write(result.output)
 
         except Exception as e:
-            print(f"Error saving report to file: {e}")
+            self.console.print(f"[bold red]Error saving report to file: {e}[/bold red]")
 
-        print(f"\n--- Execution Report ---")
-        print(f"Tool: {result.command.tool_name}")
-        print(f"Status: {'Success' if result.success else 'Failure'}")
-        print(f"Report saved: {paths.summary_file}")
+        # The JSON reporter doesn't print a summary to the console,
+        # as the TxtReporter already does that. We could add it if desired,
+        # but it might be redundant.
+        pass

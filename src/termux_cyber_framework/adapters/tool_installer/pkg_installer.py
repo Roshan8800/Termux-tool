@@ -9,11 +9,20 @@ from termux_cyber_framework.adapters.logger.install_logger import InstallLogger
 
 class PkgInstallerAdapter(InstallerStrategyPort):
     """
-    An installer strategy for installing tools using the Termux package manager.
+    An installer strategy for installing tools using a system package manager (apt-get or pkg).
     """
     def __init__(self, command_runner: CommandRunner, install_logger: InstallLogger):
         self._command_runner = command_runner
         self._install_logger = install_logger
+        self.pkg_manager = self._get_package_manager()
+
+    def _get_package_manager(self) -> str:
+        """Determines the available package manager."""
+        if shutil.which("apt-get"):
+            return "apt-get"
+        if shutil.which("pkg"):
+            return "pkg"
+        return None
 
     def is_installed(self, tool: Tool) -> bool:
         """
@@ -24,16 +33,14 @@ class PkgInstallerAdapter(InstallerStrategyPort):
 
     def install(self, tool: Tool, config: Config) -> bool:
         """
-        Installs the tool using 'pkg install'.
-
-        Args:
-            tool: The tool to install. The `source` from `install_info` is used
-                  as the package name.
-            config: The framework configuration.
-
-        Returns:
-            True if installation was successful, False otherwise.
+        Installs the tool using the detected package manager.
         """
+        if not self.pkg_manager:
+            message = "No supported package manager (apt-get, pkg) found."
+            self._install_logger.log(tool.name, message)
+            print(f"[-] {message}")
+            return False
+
         if not config.allow_system_install:
             if os.geteuid() == 0:
                 message = "Running as root is not allowed by policy."
@@ -44,10 +51,16 @@ class PkgInstallerAdapter(InstallerStrategyPort):
             raise PermissionError(message)
 
         package_name = tool.install_info.source
-        command = ["pkg", "install", package_name, "-y"]
+        command = [self.pkg_manager, "install", package_name, "-y"]
 
-        print(f"[*] Attempting to install package '{package_name}' with pkg...")
+        print(f"[*] Attempting to install package '{package_name}' with {self.pkg_manager}...")
         try:
+            # For apt-get, we might need to run `apt-get update` first.
+            if self.pkg_manager == "apt-get":
+                update_command = ["apt-get", "update"]
+                print("[*] Running apt-get update...")
+                self._command_runner.run(update_command, check=True, capture_output=True, text=True)
+
             process = self._command_runner.run(
                 command,
                 check=True,
@@ -63,6 +76,6 @@ class PkgInstallerAdapter(InstallerStrategyPort):
             print(f"[-] Error installing package {package_name}: {e.stderr}")
             return False
         except FileNotFoundError:
-            self._install_logger.log(tool.name, "Error: 'pkg' not found.")
-            print("[-] Error: 'pkg' not found. Is Termux installed and in your PATH?")
+            self._install_logger.log(tool.name, f"Error: '{self.pkg_manager}' not found.")
+            print(f"[-] Error: '{self.pkg_manager}' not found. Is it installed and in your PATH?")
             return False

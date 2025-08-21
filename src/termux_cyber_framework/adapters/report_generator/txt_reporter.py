@@ -4,6 +4,9 @@ from datetime import datetime
 from termux_cyber_framework.core.domain.models import ExecutionResult
 from termux_cyber_framework.core.use_cases.ports import ReportGeneratorPort
 from termux_cyber_framework.core.domain.run_paths import RunPaths
+from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
 
 class TxtReporter(ReportGeneratorPort):
     """
@@ -11,6 +14,7 @@ class TxtReporter(ReportGeneratorPort):
     """
     def __init__(self, reports_dir="reports"):
         self.reports_dir = reports_dir
+        self.console = Console()
         if not os.path.exists(self.reports_dir):
             os.makedirs(self.reports_dir)
 
@@ -53,9 +57,22 @@ class TxtReporter(ReportGeneratorPort):
                     f.write(result.output)
 
         except Exception as e:
-            print(f"Error saving report to file: {e}")
+            self.console.print(f"[bold red]Error saving report to file: {e}[/bold red]")
 
-        print(f"\n--- Execution Report ---")
-        print(f"Tool: {result.command.tool_name}")
-        print(f"Status: {'Success' if result.success else 'Failure'}")
-        print(f"Report saved: {paths.summary_file}")
+        status_style = "bold green" if result.success else "bold red"
+        status_text = "Success" if result.success else "Failure"
+
+        report_text = Text()
+        report_text.append("Tool: ", style="bold")
+        report_text.append(f"{result.command.tool_name}\n")
+        report_text.append("Status: ", style="bold")
+        report_text.append(status_text, style=status_style)
+        report_text.append("\nReport saved: ", style="bold")
+        report_text.append(str(paths.summary_file))
+
+        panel = Panel(
+            report_text,
+            title="[bold blue]Execution Report[/bold blue]",
+            border_style="blue"
+        )
+        self.console.print(panel)

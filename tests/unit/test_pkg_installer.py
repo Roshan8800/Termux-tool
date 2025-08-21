@@ -25,9 +25,11 @@ def config_disallow():
 def test_pkg_install_success(tmp_path, pkg_tool, config_allow):
     # Arrange
     mock_runner = MockCommandRunner({
-        "pkg install test-package -y": {"returncode": 0}
+        "apt-get update": {"returncode": 0},
+        "apt-get install test-package -y": {"returncode": 0}
     })
     installer = PkgInstallerAdapter(mock_runner, InstallLogger(log_dir=str(tmp_path)))
+    installer.pkg_manager = "apt-get" # Force apt-get for testing
 
     # Act
     result = installer.install(pkg_tool, config_allow)
@@ -38,9 +40,11 @@ def test_pkg_install_success(tmp_path, pkg_tool, config_allow):
 def test_pkg_install_failure(tmp_path, pkg_tool, config_allow):
     # Arrange
     mock_runner = MockCommandRunner({
-        "pkg install test-package -y": {"exception": subprocess.CalledProcessError(1, "pkg install", "error")}
+        "apt-get update": {"returncode": 0},
+        "apt-get install test-package -y": {"exception": subprocess.CalledProcessError(1, "apt-get install", "error")}
     })
     installer = PkgInstallerAdapter(mock_runner, InstallLogger(log_dir=str(tmp_path)))
+    installer.pkg_manager = "apt-get" # Force apt-get for testing
 
     # Act
     result = installer.install(pkg_tool, config_allow)

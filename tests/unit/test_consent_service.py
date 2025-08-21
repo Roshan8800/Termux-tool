@@ -9,7 +9,7 @@ def test_consent_service_get_consent_yes(monkeypatch, tmp_path):
     log_file = tmp_path / "consent_log.json"
     service = ConsentService(log_file=str(log_file))
     command = Command(tool_name="nmap", args=["-sV", "localhost"], raw_command="nmap -sV localhost")
-    monkeypatch.setattr('builtins.input', lambda _: 'y')
+    monkeypatch.setattr('builtins.input', lambda: 'y')
 
     # Act
     result = service.get_consent(command)
@@ -26,7 +26,7 @@ def test_consent_service_get_consent_no(monkeypatch, tmp_path):
     log_file = tmp_path / "consent_log.json"
     service = ConsentService(log_file=str(log_file))
     command = Command(tool_name="nmap", args=["-sV", "localhost"], raw_command="nmap -sV localhost")
-    monkeypatch.setattr('builtins.input', lambda _: 'n')
+    monkeypatch.setattr('builtins.input', lambda: 'n')
 
     # Act
     result = service.get_consent(command)
