@@ -2,7 +2,7 @@ import pytest
 import json
 import os
 from datetime import datetime
-from termux_cyber_framework.adapters.report_generator.json_reporter import JsonReporter
+from termux_cyber_framework.adapters.report_generator.txt_reporter import TxtReporter
 from termux_cyber_framework.core.domain.models import ExecutionResult, Command, Error
 
 @pytest.fixture
@@ -16,9 +16,9 @@ def execution_result():
         end_time=datetime.now()
     )
 
-def test_json_reporter_creates_files(tmp_path, execution_result):
+def test_txt_reporter_creates_files(tmp_path, execution_result):
     # Arrange
-    reporter = JsonReporter(reports_dir=str(tmp_path))
+    reporter = TxtReporter(reports_dir=str(tmp_path))
 
     # Act
     paths = reporter.prepare_report_paths(execution_result.command.tool_name)
@@ -29,8 +29,8 @@ def test_json_reporter_creates_files(tmp_path, execution_result):
     assert os.path.exists(paths.output_log_file)
 
     with open(paths.summary_file, 'r') as f:
-        summary_data = json.load(f)
-    assert summary_data["success"] is True
+        summary_content = f.read()
+    assert "Status: Success" in summary_content
 
     with open(paths.output_log_file, 'r') as f:
         log_content = f.read()

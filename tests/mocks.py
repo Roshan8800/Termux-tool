@@ -47,6 +47,8 @@ class MockCommandRunner:
         else:
             command_str = command
 
+        print(f"DEBUG: MockCommandRunner: command_str='{command_str}', mock_results={self.mock_results}")
+
         if command_str in self.mock_results:
             result = self.mock_results[command_str]
             if "exception" in result:

@@ -2,30 +2,52 @@ import ipaddress
 import shutil
 import subprocess
 from .generic_runner import GenericRunner
-from termux_cyber_framework.core.domain.models import Command, Tool, ExecutionResult, Config
+from termux_cyber_framework.core.domain.models import Command, Tool, ExecutionResult
+from termux_cyber_framework.core.domain.config import Config
 from termux_cyber_framework.core.domain.run_paths import RunPaths
 from termux_cyber_framework.core.command_runner import CommandRunner
-from termux_cyber_framework.core.use_cases.ports import ToolAdapterPort
+from termux_cyber_framework.core.use_cases.ports import ToolAdapterPort, LoggerPort
 
 class NmapAdapter(GenericRunner, ToolAdapterPort):
     """
     A specific ToolAdapterPort implementation for the Nmap tool.
     """
-    def __init__(self, command_runner: CommandRunner = None):
+    def __init__(self, command_runner: CommandRunner = None, config: Config = None, logger: LoggerPort = None):
         super().__init__(command_runner)
+        self.config = config or Config()
+        self.logger = logger
 
-    def is_installed(self) -> bool:
+    def find_tool(self, name: str):
+        if name == "nmap":
+            return Tool(
+                name="nmap",
+                description="Network scanner",
+                install_info=InstallInfo(method="pkg", source="nmap"),
+                run_command="nmap"
+            )
+        return None
+
+    def check_if_installed(self, tool: Tool) -> bool:
         return shutil.which("nmap") is not None
 
-    def install(self, config: Config) -> bool:
-        if not config.allow_system_install:
-            print(f"[-] System-level installation for 'nmap' is not allowed by policy.")
+    def install_tool(self, tool: Tool) -> bool:
+        if not self.config.allow_system_install:
+            print(f"[-] System-level installation for '{tool.name}' is not allowed by policy.")
             return False
 
         try:
-            process = self._command_runner.run(["pkg", "install", "-y", "nmap"], check=True, capture_output=True, text=True)
+            process = self._command_runner.run(["pkg", "install", "nmap", "-y"])
+            if self.logger:
+                log_file = f"logs/install-{tool.name}.log"
+                with open(log_file, "w") as f:
+                    f.write(process.stdout)
+                    f.write(process.stderr)
             return process.returncode == 0
-        except (subprocess.CalledProcessError, FileNotFoundError):
+        except Exception as e:
+            if self.logger:
+                log_file = f"logs/install-{tool.name}-error.log"
+                with open(log_file, "w") as f:
+                    f.write(str(e))
             return False
 
     def _is_cidr(self, s: str) -> bool:

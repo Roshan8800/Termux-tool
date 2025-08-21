@@ -1,16 +1,29 @@
 import asyncio
 import typer
 import os
+from typing import Optional
 from termux_cyber_framework.core.use_cases.run_tool_use_case import RunToolUseCase
 from termux_cyber_framework.core.command_runner import CommandRunner
 from termux_cyber_framework.core.domain.config import Config
+from termux_cyber_framework.core.use_cases.consent.consent_service import ConsentService
 from termux_cyber_framework.adapters.command_parser.rules_parser import RulesParserAdapter
 from termux_cyber_framework.adapters.tool_runner.nmap_adapter import NmapAdapter
 from termux_cyber_framework.adapters.tool_runner.sqlmap_adapter import SqlmapAdapter
 from termux_cyber_framework.adapters.report_generator.txt_reporter import TxtReporter
 from termux_cyber_framework.adapters.persistence.execution_history import ExecutionHistory
+from termux_cyber_framework.adapters.audit_logger.file_audit_logger import FileAuditLogger
+from termux_cyber_framework.adapters.logger.file_logger import FileLoggerAdapter
+from termux_cyber_framework.adapters.error_fixer.simple_ai_fixer import SimpleAiFixerAdapter
+from termux_cyber_framework.adapters.doctor.regex_doctor import RegexDoctorAdapter
 
-def build_use_case(command_runner: Optional[CommandRunner] = None, config: Optional[Config] = None, consent_service: Optional[ConsentService] = None) -> RunToolUseCase:
+app = typer.Typer()
+
+def build_use_case(
+    command_runner: Optional[CommandRunner] = None,
+    config: Optional[Config] = None,
+    consent_service: Optional[ConsentService] = None,
+    execution_history: Optional[ExecutionHistory] = None
+) -> RunToolUseCase:
     """
     Composition Root: Constructs and wires all adapters and use cases.
     """
@@ -19,6 +32,7 @@ def build_use_case(command_runner: Optional[CommandRunner] = None, config: Optio
     config = config or Config()
     command_runner = command_runner or CommandRunner()
     consent_service = consent_service or ConsentService()
+    execution_history = execution_history or ExecutionHistory()
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
     parser_rules_path = os.path.join(base_dir, "..", "..", "config", "parser_rules.json")
@@ -27,16 +41,17 @@ def build_use_case(command_runner: Optional[CommandRunner] = None, config: Optio
     # Ports -> Adapters
     command_parser = RulesParserAdapter(rules_path=parser_rules_path)
 
+    from termux_cyber_framework.adapters.tool_runner.whois_adapter import WhoisAdapter
+    logger = FileLoggerAdapter()
     tool_adapters = {
-        "nmap": NmapAdapter(command_runner),
-        "sqlmap": SqlmapAdapter(command_runner),
+        "nmap": NmapAdapter(command_runner=command_runner, config=config, logger=logger),
+        "sqlmap": SqlmapAdapter(command_runner=command_runner, config=config, logger=logger),
+        "whois": WhoisAdapter(command_runner=command_runner, config=config, logger=logger),
     }
 
     report_generator = TxtReporter()
     audit_logger = FileAuditLogger()
-    execution_history = ExecutionHistory()
     error_fixer = SimpleAiFixerAdapter()
-    logger = FileLoggerAdapter()
     doctor = RegexDoctorAdapter(
         rules_path=doctor_rules_path,
         command_runner=command_runner,

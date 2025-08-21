@@ -54,3 +54,11 @@ class ExecutionResult(BaseModel):
     pid: Optional[int] = Field(None, description="The process ID of the command.")
     output_log_file: Optional[str] = Field(None, description="The path to the log file containing the command's output.")
     findings: Optional[List[dict]] = Field(None, description="A list of structured findings from the tool's output.")
+
+
+class Remediation(BaseModel):
+    """
+    Represents a suggested remediation for an error.
+    """
+    description: str = Field(..., description="A description of the suggested fix.")
+    command: Command = Field(..., description="The corrected command to run.")

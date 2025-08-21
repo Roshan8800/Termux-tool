@@ -22,12 +22,13 @@ class TxtReporter(ReportGeneratorPort):
         run_dir = os.path.join(self.reports_dir, date_str, tool_name)
         os.makedirs(run_dir, exist_ok=True)
 
-        report_path = os.path.join(run_dir, f"{time_str}.txt")
-        return RunPaths(summary_file=report_path, output_log_file=None)
+        summary_path = os.path.join(run_dir, f"{time_str}.txt")
+        log_path = os.path.join(run_dir, f"{time_str}.log")
+        return RunPaths(summary_file=summary_path, output_log_file=log_path)
 
     def generate(self, result: ExecutionResult, paths: RunPaths) -> None:
         """
-        Saves the report to a text file.
+        Saves the report to a text file and the output to a log file.
         """
         try:
             with open(paths.summary_file, 'w') as f:
@@ -36,8 +37,13 @@ class TxtReporter(ReportGeneratorPort):
                 f.write(f"Status: {'Success' if result.success else 'Failure'}\n")
                 if result.error:
                     f.write(f"Error: {result.error.message}\n")
-                f.write("\n--- OUTPUT ---\n")
-                f.write(result.output)
+                f.write(f"\n--- SUMMARY ---\n")
+                f.write(f"Full output logged to: {paths.output_log_file}\n")
+
+            if paths.output_log_file:
+                with open(paths.output_log_file, 'w') as f:
+                    f.write(result.output)
+
         except Exception as e:
             print(f"Error saving report to file: {e}")
 

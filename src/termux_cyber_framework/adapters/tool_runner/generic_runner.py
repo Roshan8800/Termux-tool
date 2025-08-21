@@ -14,6 +14,7 @@ class GenericRunner(ToolRunnerPort):
         self._command_runner = command_runner or CommandRunner()
 
     def run(self, tool: Tool, command: Command, paths: RunPaths) -> ExecutionResult:
+        assert paths is not None, "Adapter.run called without paths!"
         base_command_parts = tool.run_command.split()
         full_command = base_command_parts + command.args
 

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "termux-cyber-framework"
-version = "0.2.0"
+version = "0.3.0"
 description = "An AI-driven, natural language-powered cybersecurity framework for Termux."
 authors = ["Jules <agent@example.com>"]
 packages = [{include = "termux_cyber_framework", from = "src"}]

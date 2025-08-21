@@ -6,6 +6,51 @@ A natural language-powered cybersecurity framework for Termux.
 
 This framework allows users to run cybersecurity tools using natural language commands. It is designed to be extensible, allowing new tools and features to be added easily.
 
+## Getting Started
+
+### Prerequisites
+
+- Python 3.11+
+- Termux (for Android) or a Debian-based Linux distribution.
+
+### Installation
+
+1.  Clone the repository:
+    ```
+    git clone https://github.com/user/termux-cyber-framework.git
+    cd termux-cyber-framework
+    ```
+2.  Install the dependencies:
+    ```
+    pip install -r requirements.txt
+    ```
+
+## Usage
+
+To run a command, use the `run` command followed by a natural language query:
+
+```
+python -m termux_cyber_framework.adapters.cli.main run "scan example.com for open ports with nmap"
+```
+
+### Dry-Run Mode
+
+The framework supports a `--dry-run` flag that allows you to see what commands would be executed without actually running them. This is useful for testing and for CI environments.
+
+```
+python -m termux_cyber_framework.adapters.cli.main run "scan example.com for open ports with nmap" --dry-run
+```
+
+### Sample Output
+
+```
+--- Execution Report ---
+Tool: nmap
+Target: example.com
+Status: Success
+Report saved: reports/nmap/2025-08-20-1530.txt
+```
+
 ## Architecture
 
 The framework is built using a hexagonal architecture, with a core domain that is independent of the adapters. The main components are:
@@ -16,19 +61,9 @@ The framework is built using a hexagonal architecture, with a core domain that i
 
 The `main.py` file in the `adapters/cli` directory acts as the composition root, where all the adapters are instantiated and wired together.
 
-## How to Run in Dry-Run Mode
-
-The framework supports a `--dry-run` flag that allows you to see what commands would be executed without actually running them. This is useful for testing and for CI environments.
-
-To run in dry-run mode, use the `--dry-run` flag with the `run` command:
-
-```
-python -m termux_cyber_framework.adapters.cli.main run "scan example.com for open ports" --dry-run
-```
-
 ## How to Add Tools
 
-To add a new tool, you need to add an entry to the `config/tools.json` file. Each entry should have the following format:
+To add a new tool, you need to add an entry to the `data/tool_catalog.json` file. Each entry should have the following format:
 
 ```json
 {
@@ -68,3 +103,11 @@ To add a new doctor rule, you need to add an entry to the `config/doctor_rules.j
 - `explain`: an explanation of the issue and the proposed fix.
 - `commands`: a list of commands to run to fix the issue.
 - `require_confirm`: a boolean indicating whether the user's confirmation is required before applying the fix.
+
+## Future Ideas
+
+- Plugin system for new tools and adapters.
+- Persistence to a database instead of JSON files.
+- Multi-user support with more granular consent and audit logs.
+- More advanced AI features for command parsing and error fixing.
+- Web interface for easier use.

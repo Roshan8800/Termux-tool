@@ -3,6 +3,7 @@ from datetime import datetime
 from termux_cyber_framework.core.domain.models import ExecutionResult, Command, Error, Tool, InstallInfo
 from termux_cyber_framework.core.domain.config import Config
 from termux_cyber_framework.core.domain.run_paths import RunPaths
+from termux_cyber_framework.adapters.persistence.execution_history import ExecutionHistory
 from termux_cyber_framework.core.use_cases.ports import (
     CommandParserPort,
     ToolAdapterPort,
@@ -21,9 +22,6 @@ class RunToolUseCase:
     Orchestrates the entire process of running a command from user input,
     using tool-specific adapters and an AI-powered error fixer.
     """
-
-from termux_cyber_framework.adapters.persistence.execution_history import ExecutionHistory
-
     def __init__(
         self,
         parser: CommandParserPort,
@@ -56,10 +54,14 @@ from termux_cyber_framework.adapters.persistence.execution_history import Execut
             self.logger.log(f"Tool '{command.tool_name}' is not supported.", level=LogLevel.ERROR)
             raise ValueError(f"Tool '{command.tool_name}' is not supported.")
 
-        if not adapter.is_installed():
+        tool = adapter.find_tool(command.tool_name)
+        if not tool:
+            raise ValueError(f"Tool '{command.tool_name}' not found by adapter.")
+
+        if not adapter.check_if_installed(tool):
              self.logger.log(f"Tool '{command.tool_name}' is not installed. Attempting installation.")
              if not self.config.dry_run:
-                 if not adapter.install(self.config):
+                 if not adapter.install_tool(tool):
                      self.logger.log(f"Failed to install tool '{command.tool_name}'.", level=LogLevel.ERROR)
                      raise RuntimeError(f"Failed to install tool '{command.tool_name}'.")
                  self.logger.log(f"Tool '{command.tool_name}' installed successfully.")
@@ -83,7 +85,7 @@ from termux_cyber_framework.adapters.persistence.execution_history import Execut
                 output_log_file=str(paths.output_log_file)
             )
 
-        result = adapter.run(command, paths)
+        result = adapter.run(tool, command, paths)
         result.output_log_file = str(paths.output_log_file) # Set the log file path in the result
 
         self.logger.log(f"Command execution finished. Success: {result.success}", level=LogLevel.DEBUG)
@@ -139,13 +141,14 @@ from termux_cyber_framework.adapters.persistence.execution_history import Execut
                 end_time=now
             )
 
-        if not result.success:
+        if not result.success and result.error:
             self.logger.log("Command failed, running doctor.", level=LogLevel.INFO)
-            fixes = await self.doctor.detect_and_fix(result)
-            if fixes:
-                self.logger.log(f"Doctor found {len(fixes)} potential fixes.", level=LogLevel.INFO)
-                # For now, we just log the fixes. A more advanced implementation
+            remediations = self.doctor.diagnose(result.error, result.command)
+            if remediations:
+                self.logger.log(f"Doctor found {len(remediations)} potential remediations.", level=LogLevel.INFO)
+                # For now, we just log the remediations. A more advanced implementation
                 # could present them to the user or attempt to re-run the command.
+                result.error.fix_suggestion = str(remediations)
 
         self.logger.log("Generating report.")
         paths = self.report_generator.prepare_report_paths(result.command.tool_name)
@@ -157,6 +160,7 @@ from termux_cyber_framework.adapters.persistence.execution_history import Execut
             "command": result.command.raw_command,
             "tool": result.command.tool_name,
             "exit_code": result.error.error_code if result.error else 0,
+            "error_message": result.error.message if result.error else None,
             "artifact_paths": [str(paths.summary_file), str(paths.output_log_file)]
         })
 

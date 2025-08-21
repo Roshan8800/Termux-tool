@@ -2,31 +2,53 @@ import re
 import os
 import subprocess
 from .generic_runner import GenericRunner
-from termux_cyber_framework.core.domain.models import Command, Tool, ExecutionResult, Config
+from termux_cyber_framework.core.domain.models import Command, Tool, ExecutionResult, InstallInfo
+from termux_cyber_framework.core.domain.config import Config
 from termux_cyber_framework.core.domain.run_paths import RunPaths
 from termux_cyber_framework.core.command_runner import CommandRunner
-from termux_cyber_framework.core.use_cases.ports import ToolAdapterPort
+from termux_cyber_framework.core.use_cases.ports import ToolAdapterPort, LoggerPort
 
 class SqlmapAdapter(GenericRunner, ToolAdapterPort):
     """
     A specific ToolAdapterPort implementation for the Sqlmap tool.
     """
-    def __init__(self, command_runner: CommandRunner = None):
+    def __init__(self, command_runner: CommandRunner = None, config: Config = None, logger: LoggerPort = None):
         super().__init__(command_runner)
+        self.config = config or Config()
+        self.logger = logger
         self.tool_path = "tools/sqlmap"
 
-    def is_installed(self) -> bool:
+    def find_tool(self, name: str):
+        if name == "sqlmap":
+            return Tool(
+                name="sqlmap",
+                description="SQL injection tool",
+                install_info=InstallInfo(method="git", source="https://github.com/sqlmapproject/sqlmap.git", path=self.tool_path),
+                run_command=f"python3 {self.tool_path}/sqlmap.py"
+            )
+        return None
+
+    def check_if_installed(self, tool: Tool) -> bool:
         return os.path.exists(self.tool_path)
 
-    def install(self, config: Config) -> bool:
-        if not config.allow_system_install:
-            print(f"[-] System-level installation for 'sqlmap' is not allowed by policy.")
+    def install_tool(self, tool: Tool) -> bool:
+        if not self.config.allow_system_install:
+            print(f"[-] System-level installation for '{tool.name}' is not allowed by policy.")
             return False
 
         try:
-            process = self._command_runner.run(["git", "clone", "https://github.com/sqlmapproject/sqlmap.git", self.tool_path], check=True, capture_output=True, text=True)
+            process = self._command_runner.run(["git", "clone", "https://github.com/sqlmapproject/sqlmap.git", self.tool_path])
+            if self.logger:
+                log_file = f"logs/install-{tool.name}.log"
+                with open(log_file, "w") as f:
+                    f.write(process.stdout)
+                    f.write(process.stderr)
             return process.returncode == 0
-        except (subprocess.CalledProcessError, FileNotFoundError):
+        except Exception as e:
+            if self.logger:
+                log_file = f"logs/install-{tool.name}-error.log"
+                with open(log_file, "w") as f:
+                    f.write(str(e))
             return False
 
     def _parse_output(self, output: str) -> list:
