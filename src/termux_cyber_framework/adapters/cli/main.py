@@ -7,8 +7,7 @@ from termux_cyber_framework.core.command_runner import CommandRunner
 from termux_cyber_framework.core.domain.config import Config
 from termux_cyber_framework.core.use_cases.consent.consent_service import ConsentService
 from termux_cyber_framework.adapters.command_parser.rules_parser import RulesParserAdapter
-from termux_cyber_framework.adapters.tool_runner.nmap_adapter import NmapAdapter
-from termux_cyber_framework.adapters.tool_runner.sqlmap_adapter import SqlmapAdapter
+from termux_cyber_framework.core.plugin_manager import PluginManager
 from termux_cyber_framework.adapters.report_generator.txt_reporter import TxtReporter
 from termux_cyber_framework.adapters.persistence.execution_history import ExecutionHistory
 from termux_cyber_framework.adapters.audit_logger.file_audit_logger import FileAuditLogger
@@ -33,6 +32,7 @@ def build_use_case(
     command_runner = command_runner or CommandRunner()
     consent_service = consent_service or ConsentService()
     execution_history = execution_history or ExecutionHistory()
+    logger = FileLoggerAdapter()
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
     parser_rules_path = os.path.join(base_dir, "..", "..", "config", "parser_rules.json")
@@ -41,13 +41,8 @@ def build_use_case(
     # Ports -> Adapters
     command_parser = RulesParserAdapter(rules_path=parser_rules_path)
 
-    from termux_cyber_framework.adapters.tool_runner.whois_adapter import WhoisAdapter
-    logger = FileLoggerAdapter()
-    tool_adapters = {
-        "nmap": NmapAdapter(command_runner=command_runner, config=config, logger=logger),
-        "sqlmap": SqlmapAdapter(command_runner=command_runner, config=config, logger=logger),
-        "whois": WhoisAdapter(command_runner=command_runner, config=config, logger=logger),
-    }
+    plugin_manager = PluginManager(config=config, command_runner=command_runner, logger=logger)
+    tool_adapters = plugin_manager.load_plugins()
 
     report_generator = TxtReporter()
     audit_logger = FileAuditLogger()

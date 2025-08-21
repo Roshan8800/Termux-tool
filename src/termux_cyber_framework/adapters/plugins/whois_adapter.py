@@ -15,7 +15,7 @@ class WhoisAdapter(GenericRunner, ToolAdapterPort):
         self.config = config or Config()
         self.logger = logger
 
-    def find_tool(self, name: str):
+    def find_tool(self, name: str = "whois"):
         if name == "whois":
             return Tool(
                 name="whois",

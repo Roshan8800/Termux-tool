@@ -18,7 +18,7 @@ class SqlmapAdapter(GenericRunner, ToolAdapterPort):
         self.logger = logger
         self.tool_path = "tools/sqlmap"
 
-    def find_tool(self, name: str):
+    def find_tool(self, name: str = "sqlmap"):
         if name == "sqlmap":
             return Tool(
                 name="sqlmap",

@@ -2,7 +2,7 @@ import ipaddress
 import shutil
 import subprocess
 from .generic_runner import GenericRunner
-from termux_cyber_framework.core.domain.models import Command, Tool, ExecutionResult
+from termux_cyber_framework.core.domain.models import Command, Tool, ExecutionResult, InstallInfo
 from termux_cyber_framework.core.domain.config import Config
 from termux_cyber_framework.core.domain.run_paths import RunPaths
 from termux_cyber_framework.core.command_runner import CommandRunner
@@ -17,7 +17,7 @@ class NmapAdapter(GenericRunner, ToolAdapterPort):
         self.config = config or Config()
         self.logger = logger
 
-    def find_tool(self, name: str):
+    def find_tool(self, name: str = "nmap"):
         if name == "nmap":
             return Tool(
                 name="nmap",
