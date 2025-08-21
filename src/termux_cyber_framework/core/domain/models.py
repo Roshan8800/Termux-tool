@@ -32,6 +32,7 @@ class Command(BaseModel):
     tool_name: str = Field(..., description="The name of the tool to be executed.")
     args: List[str] = Field(default_factory=list, description="The arguments to pass to the tool's command.")
     raw_command: str = Field(..., description="The original natural language command from the user.")
+    ai_interpretation: Optional[dict] = Field(None, description="The structured interpretation from the AI.")
 
 class Error(BaseModel):
     """
@@ -54,6 +55,7 @@ class ExecutionResult(BaseModel):
     pid: Optional[int] = Field(None, description="The process ID of the command.")
     output_log_file: Optional[str] = Field(None, description="The path to the log file containing the command's output.")
     findings: Optional[List[dict]] = Field(None, description="A list of structured findings from the tool's output.")
+    consent_given: bool = Field(False, description="Whether the user provided consent for the command to be executed.")
 
 
 class Remediation(BaseModel):

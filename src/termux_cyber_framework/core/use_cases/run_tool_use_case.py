@@ -9,6 +9,7 @@ from termux_cyber_framework.core.use_cases.ports import (
     ToolAdapterPort,
     ReportGeneratorPort,
     ErrorFixerPort,
+    List,
     LoggerPort,
     DoctorPort,
     AuditLoggerPort,
@@ -26,7 +27,7 @@ class RunToolUseCase:
         self,
         parser: CommandParserPort,
         tool_adapters: Dict[str, ToolAdapterPort],
-        report_generator: ReportGeneratorPort,
+        report_generators: List[ReportGeneratorPort],
         error_fixer: ErrorFixerPort,
         logger: LoggerPort,
         config: Config,
@@ -37,7 +38,7 @@ class RunToolUseCase:
     ):
         self.parser = parser
         self.tool_adapters = tool_adapters
-        self.report_generator = report_generator
+        self.report_generators = report_generators
         self.error_fixer = error_fixer
         self.logger = logger
         self.config = config
@@ -70,7 +71,9 @@ class RunToolUseCase:
 
         self.logger.log(f"Using adapter '{adapter.__class__.__name__}' for command '{command.tool_name}'.")
 
-        paths = self.report_generator.prepare_report_paths(command.tool_name)
+        # This is a bit of a hack. We'll use the paths from the first generator.
+        # A better solution would be to have a shared path generation mechanism.
+        paths = self.report_generators[0].prepare_report_paths(command.tool_name) if self.report_generators else None
 
         if self.config.dry_run:
             self.logger.log(f"Dry run: Skipping execution of command '{command.raw_command}'.", level=LogLevel.INFO)
@@ -101,7 +104,8 @@ class RunToolUseCase:
             command = await self.parser.parse_command(user_input)
             self.logger.log(f"Parsed command: Tool='{command.tool_name}', Args={command.args}", level=LogLevel.DEBUG)
 
-            if not self.config.dry_run and not self.consent_service.get_consent(command):
+            consent_given = self.consent_service.get_consent(command)
+            if not self.config.dry_run and not consent_given:
                 self.logger.log("User did not provide consent. Aborting.", level=LogLevel.WARNING)
                 error = Error(message="User did not provide consent.")
                 now = datetime.now()
@@ -111,10 +115,12 @@ class RunToolUseCase:
                     output="",
                     error=error,
                     start_time=now,
-                    end_time=now
+                    end_time=now,
+                    consent_given=False
                 )
 
             result = await self._run_command_flow(command)
+            result.consent_given = consent_given
 
             # If the first attempt fails, try to fix it
             if not result.success and result.error:
@@ -150,9 +156,14 @@ class RunToolUseCase:
                 # could present them to the user or attempt to re-run the command.
                 result.error.fix_suggestion = str(remediations)
 
-        self.logger.log("Generating report.")
-        paths = self.report_generator.prepare_report_paths(result.command.tool_name)
-        self.report_generator.generate(result, paths)
+        self.logger.log("Generating reports.")
+        artifact_paths = []
+        for report_generator in self.report_generators:
+            paths = report_generator.prepare_report_paths(result.command.tool_name)
+            report_generator.generate(result, paths)
+            artifact_paths.append(str(paths.summary_file))
+            if paths.output_log_file:
+                artifact_paths.append(str(paths.output_log_file))
 
         self.audit_logger.append({
             "session_id": self.config.session_id,
@@ -161,7 +172,7 @@ class RunToolUseCase:
             "tool": result.command.tool_name,
             "exit_code": result.error.error_code if result.error else 0,
             "error_message": result.error.message if result.error else None,
-            "artifact_paths": [str(paths.summary_file), str(paths.output_log_file)]
+            "artifact_paths": artifact_paths
         })
 
         self.execution_history.append(result)

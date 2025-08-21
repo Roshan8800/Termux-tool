@@ -126,7 +126,7 @@ def setup(nmap_tool, whois_tool):
         "whois": whois_adapter
     }
 
-    report_generator = MockReportGenerator()
+    report_generators = [MockReportGenerator()]
     error_fixer = MockErrorFixer()
     logger = MockLogger()
 
@@ -138,7 +138,7 @@ def setup(nmap_tool, whois_tool):
     use_case = RunToolUseCase(
         parser=RegexCommandParserAdapter(), # Using the real regex parser
         tool_adapters=tool_adapters,
-        report_generator=report_generator,
+        report_generators=report_generators,
         error_fixer=error_fixer,
         logger=logger,
         config=config,
@@ -147,7 +147,7 @@ def setup(nmap_tool, whois_tool):
         consent_service=consent_service,
         execution_history=execution_history
     )
-    return use_case, tool_adapters, report_generator, error_fixer, nmap_runner, whois_runner
+    return use_case, tool_adapters, report_generators, error_fixer, nmap_runner, whois_runner
 
 # --- Test Cases ---
 
@@ -192,7 +192,7 @@ async def test_orchestrator_attempts_to_fix_and_rerun_on_failure(nmap_tool):
     sudo_adapter = MockToolAdapter(sudo_runner, sudo_tool)
 
     tool_adapters = {"nmap": nmap_adapter, "sudo": sudo_adapter}
-    report_generator = MockReportGenerator()
+    report_generators = [MockReportGenerator()]
 
     fixed_command = Command(tool_name="sudo", args=["nmap"], raw_command="sudo nmap")
     error_fixer = MockErrorFixer()
@@ -209,7 +209,7 @@ async def test_orchestrator_attempts_to_fix_and_rerun_on_failure(nmap_tool):
     use_case = RunToolUseCase(
         parser=RegexCommandParserAdapter(),
         tool_adapters=tool_adapters,
-        report_generator=report_generator,
+        report_generators=report_generators,
         error_fixer=error_fixer,
         logger=MockLogger(),
         config=config,
@@ -239,7 +239,7 @@ async def test_doctor_retry(nmap_tool):
     nmap_adapter = MockToolAdapter(nmap_runner, nmap_tool)
     tool_adapters = {"nmap": nmap_adapter}
 
-    report_generator = MockReportGenerator()
+    report_generators = [MockReportGenerator()]
     error_fixer = MockErrorFixer()
     doctor = MockDoctor()
 
@@ -254,7 +254,7 @@ async def test_doctor_retry(nmap_tool):
     use_case = RunToolUseCase(
         parser=RegexCommandParserAdapter(),
         tool_adapters=tool_adapters,
-        report_generator=report_generator,
+        report_generators=report_generators,
         error_fixer=error_fixer,
         logger=MockLogger(),
         config=config,

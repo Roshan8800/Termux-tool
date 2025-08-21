@@ -6,36 +6,49 @@ from termux_cyber_framework.core.use_cases.ports import ConsentPort
 
 class ConsentService(ConsentPort):
     """
-    A ConsentPort implementation that prompts the user for consent.
+    A ConsentPort implementation that prompts the user for consent, especially for dangerous commands.
     """
-    def __init__(self, log_dir="logs", log_file="consent_log.jsonl"):
-        self.log_path = os.path.join(log_dir, log_file)
-        if not os.path.exists(log_dir):
-            os.makedirs(log_dir)
+    DANGEROUS_TOOLS = ["sqlmap", "nmap"]  # Example of tools that require explicit consent
+
+    def __init__(self, log_file="reports/consent_log.json"):
+        self.log_file = log_file
+        os.makedirs(os.path.dirname(log_file), exist_ok=True)
 
     def get_consent(self, command: Command) -> bool:
         """
-        Prompts the user for consent and records the decision.
+        Checks if a command is dangerous and prompts the user for consent if it is.
         """
-        print(f"\nYou are about to run: {command.raw_command}")
-        print("This may scan and log requests against the target.")
-        response = input("Do you want to continue? [y/N] ")
-
-        consent_given = response.lower() == "y"
+        if command.tool_name in self.DANGEROUS_TOOLS:
+            print(f"\nWARNING: The command '{command.raw_command}' is considered potentially dangerous.")
+            print(f"AI selected tool: {command.tool_name}")
+            print(f"Command to be executed: {' '.join([command.tool_name] + command.args)}")
+            response = input("Do you want to execute this command? [y/N] ")
+            consent_given = response.lower() == 'y'
+        else:
+            # For non-dangerous commands, we can assume consent is given.
+            consent_given = True
 
         self._log_consent(command, consent_given)
-
         return consent_given
 
     def _log_consent(self, command: Command, consent_given: bool):
         log_entry = {
             "timestamp": datetime.now().isoformat(),
-            "original_command": command.raw_command,
-            "interpreted_command": {
-                "tool": command.tool_name,
-                "args": command.args
-            },
-            "consent_given": consent_given
+            "command": command.raw_command,
+            "tool_used": command.tool_name,
+            "ai_interpretation": command.ai_interpretation,
+            "consent_given": consent_given,
         }
-        with open(self.log_path, "a") as f:
-            f.write(json.dumps(log_entry) + "\n")
+
+        log_data = []
+        if os.path.exists(self.log_file):
+            with open(self.log_file, "r") as f:
+                try:
+                    log_data = json.load(f)
+                except json.JSONDecodeError:
+                    log_data = []
+
+        log_data.append(log_entry)
+
+        with open(self.log_file, "w") as f:
+            json.dump(log_data, f, indent=4)

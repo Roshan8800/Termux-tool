@@ -7,7 +7,7 @@ import json
 from glob import glob
 from termux_cyber_framework.adapters.cli.main import build_use_case
 from termux_cyber_framework.core.domain.config import Config
-from .mocks import MockCommandRunner, MockConsentService, MockExecutionHistory
+from .mocks import MockCommandRunner, MockConsentService, MockExecutionHistory, MockAIInterpreter
 from termux_cyber_framework.core.domain.models import ExecutionResult
 
 @pytest.fixture
@@ -36,7 +36,7 @@ def cleanup_cloned_tools():
 
 
 @pytest.mark.asyncio
-async def test_end_to_end_whois_command(cleanup_files):
+async def test_end_to_end_whois_command_with_mock_ai(cleanup_files):
     """
     Tests the full end-to-end flow with a real command ('whois google.com').
     This test verifies that the command is executed and that log and report
@@ -51,7 +51,13 @@ async def test_end_to_end_whois_command(cleanup_files):
     config = Config(allow_system_install=True)
     consent_service = MockConsentService(consent_to_give=True)
     execution_history = MockExecutionHistory()
-    use_case = build_use_case(command_runner=mock_runner, config=config, consent_service=consent_service, execution_history=execution_history)
+    use_case = build_use_case(
+        command_runner=mock_runner,
+        config=config,
+        consent_service=consent_service,
+        execution_history=execution_history,
+        parser=MockAIInterpreter()
+    )
     command = "whois google.com"
 
     # Act
@@ -70,13 +76,21 @@ async def test_end_to_end_whois_command(cleanup_files):
         log_content = f.read()
     assert "Registrant Organization: Google LLC" in log_content
 
-    # 3. Assert that a report file was created and contains expected content
-    summary_path = result.output_log_file.replace(".log", ".txt") # In TxtReporter, summary is .txt
-    assert os.path.exists(summary_path)
-    with open(summary_path, 'r') as f:
+    # 3. Assert that report files were created and contain expected content
+    txt_summary_path = result.output_log_file.replace(".log", ".txt")
+    json_summary_path = result.output_log_file.replace(".log", ".json")
+    assert os.path.exists(txt_summary_path)
+    assert os.path.exists(json_summary_path)
+
+    with open(txt_summary_path, 'r') as f:
         report_content = f.read()
-    assert "Tool: whois" in report_content
+    assert "Tool Used: whois" in report_content
     assert "Status: Success" in report_content
+
+    with open(json_summary_path, 'r') as f:
+        json_report = json.load(f)
+    assert json_report["tool_used"] == "whois"
+    assert json_report["status"] == "Success"
 
     # 4. Assert that an audit log event was created
     audit_log_path = "logs/audit.log"
@@ -89,6 +103,34 @@ async def test_end_to_end_whois_command(cleanup_files):
     # 5. Assert that the execution history was updated
     assert len(execution_history.history) == 1
     assert execution_history.history[0].command.tool_name == "whois"
+
+
+@pytest.mark.asyncio
+async def test_end_to_end_with_real_ai(cleanup_files):
+    """
+    Tests the full end-to-end flow with the real AI interpreter.
+    """
+    # Arrange
+    mock_runner = MockCommandRunner({
+        "nmap -sV example.com": {"returncode": 0, "stdout": "Nmap scan report for example.com"}
+    })
+    config = Config(allow_system_install=True)
+    consent_service = MockConsentService(consent_to_give=True)
+    execution_history = MockExecutionHistory()
+    use_case = build_use_case(
+        command_runner=mock_runner,
+        config=config,
+        consent_service=consent_service,
+        execution_history=execution_history
+    )
+    command = "scan example.com with nmap"
+
+    # Act
+    result = await use_case.execute(command)
+
+    # Assert
+    assert result.success is True
+    assert result.command.tool_name == "nmap"
 
 
 @pytest.mark.asyncio
@@ -105,7 +147,13 @@ async def test_end_to_end_git_install_command(cleanup_files, cleanup_cloned_tool
     config = Config(allow_system_install=True)
     consent_service = MockConsentService(consent_to_give=True)
     execution_history = MockExecutionHistory()
-    use_case = build_use_case(command_runner=mock_runner, config=config, consent_service=consent_service, execution_history=execution_history)
+    use_case = build_use_case(
+        command_runner=mock_runner,
+        config=config,
+        consent_service=consent_service,
+        execution_history=execution_history,
+        parser=MockAIInterpreter()
+    )
     # Using --version is a simple, non-intrusive way to check if sqlmap runs.
     command = "sqlmap --version"
 
@@ -120,9 +168,11 @@ async def test_end_to_end_git_install_command(cleanup_files, cleanup_cloned_tool
     assert re.search(r"\d+\.\d+", result.output)
 
     # 3. Assert log and report files were created
-    assert os.path.exists(result.output_log_file)
-    summary_path = result.output_log_file.replace("run.log", "summary.json")
-    assert os.path.exists(summary_path)
+    assert result.output_log_file and os.path.exists(result.output_log_file)
+    txt_summary_path = result.output_log_file.replace(".log", ".txt")
+    json_summary_path = result.output_log_file.replace(".log", ".json")
+    assert os.path.exists(txt_summary_path)
+    assert os.path.exists(json_summary_path)
 
     # 4. Assert that an audit log event was created
     audit_log_path = "logs/audit.log"
@@ -150,7 +200,13 @@ async def test_system_install_disallowed(cleanup_files):
     config = Config(allow_system_install=False)
     consent_service = MockConsentService(consent_to_give=True)
     execution_history = MockExecutionHistory()
-    use_case = build_use_case(command_runner=mock_runner, config=config, consent_service=consent_service, execution_history=execution_history)
+    use_case = build_use_case(
+        command_runner=mock_runner,
+        config=config,
+        consent_service=consent_service,
+        execution_history=execution_history,
+        parser=MockAIInterpreter()
+    )
     command = "whois google.com"
 
     # Act
@@ -175,7 +231,13 @@ async def test_install_logging(cleanup_files):
     config = Config(allow_system_install=True)
     consent_service = MockConsentService(consent_to_give=True)
     execution_history = MockExecutionHistory()
-    use_case = build_use_case(command_runner=mock_runner, config=config, consent_service=consent_service, execution_history=execution_history)
+    use_case = build_use_case(
+        command_runner=mock_runner,
+        config=config,
+        consent_service=consent_service,
+        execution_history=execution_history,
+        parser=MockAIInterpreter()
+    )
     command = "whois google.com"
 
     # Act
@@ -200,7 +262,13 @@ async def test_dry_run_flag(cleanup_files):
     config = Config(dry_run=True)
     consent_service = MockConsentService(consent_to_give=True)
     execution_history = MockExecutionHistory()
-    use_case = build_use_case(command_runner=mock_runner, config=config, consent_service=consent_service, execution_history=execution_history)
+    use_case = build_use_case(
+        command_runner=mock_runner,
+        config=config,
+        consent_service=consent_service,
+        execution_history=execution_history,
+        parser=MockAIInterpreter()
+    )
     command = "whois google.com"
 
     # Act

@@ -5,7 +5,20 @@ from typing import List, Optional
 from termux_cyber_framework.core.use_cases.ports import ConsentPort
 from termux_cyber_framework.core.domain.models import Command
 
-from termux_cyber_framework.core.use_cases.ports import AuditLoggerPort
+from termux_cyber_framework.core.use_cases.ports import AuditLoggerPort, CommandParserPort
+
+
+class MockAIInterpreter(CommandParserPort):
+    async def parse_command(self, text: str) -> Command:
+        parts = text.split()
+        tool_name = parts[0]
+        args = parts[1:]
+        return Command(
+            tool_name=tool_name,
+            args=args,
+            raw_command=text,
+            ai_interpretation={"tool": tool_name, "args": args}
+        )
 
 class MockAuditLogger(AuditLoggerPort):
     def __init__(self):

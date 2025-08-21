@@ -6,9 +6,10 @@ from termux_cyber_framework.core.use_cases.run_tool_use_case import RunToolUseCa
 from termux_cyber_framework.core.command_runner import CommandRunner
 from termux_cyber_framework.core.domain.config import Config
 from termux_cyber_framework.core.use_cases.consent.consent_service import ConsentService
-from termux_cyber_framework.adapters.command_parser.rules_parser import RulesParserAdapter
+from termux_cyber_framework.adapters.command_parser.ai_interpreter import AIInterpreter
 from termux_cyber_framework.core.plugin_manager import PluginManager
 from termux_cyber_framework.adapters.report_generator.txt_reporter import TxtReporter
+from termux_cyber_framework.adapters.report_generator.json_reporter import JsonReporter
 from termux_cyber_framework.adapters.persistence.execution_history import ExecutionHistory
 from termux_cyber_framework.adapters.audit_logger.file_audit_logger import FileAuditLogger
 from termux_cyber_framework.adapters.logger.file_logger import FileLoggerAdapter
@@ -17,11 +18,14 @@ from termux_cyber_framework.adapters.doctor.regex_doctor import RegexDoctorAdapt
 
 app = typer.Typer()
 
+from termux_cyber_framework.core.use_cases.ports import CommandParserPort
+
 def build_use_case(
     command_runner: Optional[CommandRunner] = None,
     config: Optional[Config] = None,
     consent_service: Optional[ConsentService] = None,
-    execution_history: Optional[ExecutionHistory] = None
+    execution_history: Optional[ExecutionHistory] = None,
+    parser: Optional[CommandParserPort] = None
 ) -> RunToolUseCase:
     """
     Composition Root: Constructs and wires all adapters and use cases.
@@ -34,17 +38,18 @@ def build_use_case(
     execution_history = execution_history or ExecutionHistory()
     logger = FileLoggerAdapter()
 
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    parser_rules_path = os.path.join(base_dir, "..", "..", "config", "parser_rules.json")
-    doctor_rules_path = os.path.join(base_dir, "..", "..", "config", "doctor_rules.json")
+    # Correctly locate the project root to find the data directory
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
+    tool_catalog_path = os.path.join(project_root, "data", "tool_catalog.json")
+    doctor_rules_path = os.path.join(project_root, "src", "termux_cyber_framework", "config", "doctor_rules.json")
 
     # Ports -> Adapters
-    command_parser = RulesParserAdapter(rules_path=parser_rules_path)
+    command_parser = parser or AIInterpreter(tool_catalog_path=tool_catalog_path)
 
     plugin_manager = PluginManager(config=config, command_runner=command_runner, logger=logger)
     tool_adapters = plugin_manager.load_plugins()
 
-    report_generator = TxtReporter()
+    report_generators = [TxtReporter(), JsonReporter()]
     audit_logger = FileAuditLogger()
     error_fixer = SimpleAiFixerAdapter()
     doctor = RegexDoctorAdapter(
@@ -58,7 +63,7 @@ def build_use_case(
     return RunToolUseCase(
         parser=command_parser,
         tool_adapters=tool_adapters,
-        report_generator=report_generator,
+        report_generators=report_generators,
         error_fixer=error_fixer,
         logger=logger,
         config=config,
