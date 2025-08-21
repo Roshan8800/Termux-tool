@@ -22,29 +22,56 @@ def config_allow():
 def config_disallow():
     return Config(allow_system_install=False)
 
-def test_pkg_install_success(tmp_path, pkg_tool, config_allow):
+def test_pkg_install_success_with_sudo(tmp_path, pkg_tool, config_allow, monkeypatch):
     # Arrange
     mock_runner = MockCommandRunner({
-        "apt-get update": {"returncode": 0},
-        "apt-get install test-package -y": {"returncode": 0}
+        "sudo apt-get update": {"returncode": 0},
+        "sudo apt-get install test-package -y": {"returncode": 0}
     })
+    # Mock running as non-root user
+    monkeypatch.setattr("os.geteuid", lambda: 1000)
+    # Mock that sudo is available
+    monkeypatch.setattr("shutil.which", lambda cmd: "/usr/bin/sudo" if cmd == "sudo" else f"/usr/bin/{cmd}")
+
     installer = PkgInstallerAdapter(mock_runner, InstallLogger(log_dir=str(tmp_path)))
-    installer.pkg_manager = "apt-get" # Force apt-get for testing
+    installer.pkg_manager = "apt-get"
 
     # Act
     result = installer.install(pkg_tool, config_allow)
 
     # Assert
     assert result is True
+    assert "sudo" in mock_runner.last_command
 
-def test_pkg_install_failure(tmp_path, pkg_tool, config_allow):
+def test_pkg_install_success_as_root(tmp_path, pkg_tool, config_allow, monkeypatch):
     # Arrange
     mock_runner = MockCommandRunner({
         "apt-get update": {"returncode": 0},
-        "apt-get install test-package -y": {"exception": subprocess.CalledProcessError(1, "apt-get install", "error")}
+        "apt-get install test-package -y": {"returncode": 0}
     })
+    # Mock running as root user
+    monkeypatch.setattr("os.geteuid", lambda: 0)
     installer = PkgInstallerAdapter(mock_runner, InstallLogger(log_dir=str(tmp_path)))
-    installer.pkg_manager = "apt-get" # Force apt-get for testing
+    installer.pkg_manager = "apt-get"
+
+    # Act
+    result = installer.install(pkg_tool, config_allow)
+
+    # Assert
+    assert result is True
+    assert "sudo" not in mock_runner.last_command
+
+def test_pkg_install_failure(tmp_path, pkg_tool, config_allow, monkeypatch):
+    # Arrange
+    mock_runner = MockCommandRunner({
+        "sudo apt-get update": {"returncode": 0},
+        "sudo apt-get install test-package -y": {"exception": subprocess.CalledProcessError(1, "sudo apt-get install", "error")}
+    })
+    # Mock running as non-root user
+    monkeypatch.setattr("os.geteuid", lambda: 1000)
+    monkeypatch.setattr("shutil.which", lambda cmd: "/usr/bin/sudo" if cmd == "sudo" else f"/usr/bin/{cmd}")
+    installer = PkgInstallerAdapter(mock_runner, InstallLogger(log_dir=str(tmp_path)))
+    installer.pkg_manager = "apt-get"
 
     # Act
     result = installer.install(pkg_tool, config_allow)

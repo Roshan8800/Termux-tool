@@ -51,14 +51,21 @@ class PkgInstallerAdapter(InstallerStrategyPort):
             raise PermissionError(message)
 
         package_name = tool.install_info.source
+
+        use_sudo = self.pkg_manager == "apt-get" and os.geteuid() != 0 and shutil.which("sudo")
+
         command = [self.pkg_manager, "install", package_name, "-y"]
+        if use_sudo:
+            command.insert(0, "sudo")
 
         print(f"[*] Attempting to install package '{package_name}' with {self.pkg_manager}...")
         try:
             # For apt-get, we might need to run `apt-get update` first.
             if self.pkg_manager == "apt-get":
                 update_command = ["apt-get", "update"]
-                print("[*] Running apt-get update...")
+                if use_sudo:
+                    update_command.insert(0, "sudo")
+                print(f"[*] Running '{' '.join(update_command)}'...")
                 self._command_runner.run(update_command, check=True, capture_output=True, text=True)
 
             process = self._command_runner.run(
