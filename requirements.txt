@@ -1,4 +1,4 @@
-pydantic
+pydantic<2
 typer
 rich
 google-generativeai
