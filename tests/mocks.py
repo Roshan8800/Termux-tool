@@ -97,3 +97,18 @@ class MockCommandRunner:
         )
         process.pid = 1234
         return process
+
+
+class MockErrorAnalystAgent:
+    async def analyze_error(self, command: Command, error) -> str:
+        return "Mock AI analysis of the error."
+
+
+class MockToolInstallerAgent:
+    def __init__(self):
+        self.install_if_needed_called = False
+        self.install_if_needed_tool = None
+
+    def install_if_needed(self, tool):
+        self.install_if_needed_called = True
+        self.install_if_needed_tool = tool

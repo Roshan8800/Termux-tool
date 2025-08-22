@@ -86,11 +86,17 @@ class ToolRunnerPort(ABC):
         """
         pass
 
-class ToolAdapterPort(ToolInstallerPort, ToolRunnerPort):
+class ToolAdapterPort(ToolRunnerPort):
     """
-    A port for a tool adapter that handles both installation and execution.
+    A port for a tool adapter that handles execution.
+    Installation is now handled by the ToolInstallerAgent.
     """
-    pass
+    @abstractmethod
+    def find_tool(self, name: str) -> Optional[Tool]:
+        """
+        Finds the tool definition this adapter is responsible for.
+        """
+        pass
 
 class ReportGeneratorPort(ABC):
     """

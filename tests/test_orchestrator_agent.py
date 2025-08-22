@@ -18,7 +18,7 @@ from termux_cyber_framework.core.use_cases.ports import (
 )
 from termux_cyber_framework.core.use_cases.orchestrator_agent import OrchestratorAgent
 from termux_cyber_framework.adapters.command_parser.regex_parser import RegexCommandParserAdapter
-from tests.mocks import MockAuditLogger, MockExecutionHistory
+from tests.mocks import MockAuditLogger, MockExecutionHistory, MockToolInstallerAgent
 
 # --- Mock Adapters for Testing ---
 
@@ -133,6 +133,7 @@ def setup(nmap_tool, whois_tool):
 
     report_generators = [MockReportGenerator()]
     error_analyst = MockErrorAnalystAgent()
+    tool_installer = MockToolInstallerAgent()
     logger = MockLogger()
 
     config = Config(allow_system_install=True)
@@ -144,37 +145,43 @@ def setup(nmap_tool, whois_tool):
         tool_adapters=tool_adapters,
         report_generators=report_generators,
         error_analyst=error_analyst,
+        tool_installer=tool_installer,
         logger=logger,
         config=config,
         audit_logger=audit_logger,
         consent_service=consent_service,
         execution_history=execution_history
     )
-    return orchestrator, tool_adapters, report_generators, error_analyst, nmap_runner, whois_runner
+    return orchestrator, tool_adapters, report_generators, error_analyst, tool_installer, nmap_runner, whois_runner
 
 # --- Test Cases ---
 
 @pytest.mark.asyncio
 async def test_uses_specific_runner_when_available(setup):
-    orchestrator, _, _, _, nmap_runner, whois_runner = setup
+    orchestrator, _, _, _, _, nmap_runner, whois_runner = setup
     await orchestrator.execute("nmap -sV localhost")
     assert nmap_runner.call_count == 1
     assert whois_runner.call_count == 0
 
 @pytest.mark.asyncio
-async def test_installs_tool_if_not_installed(setup, whois_tool):
-    orchestrator, tool_adapters, _, _, _, _ = setup
-    whois_tool.is_installed = False # Override installed status
-    whois_adapter = tool_adapters["whois"]
+async def test_installs_tool_if_not_installed(setup):
+    orchestrator, _, _, _, tool_installer, _, _ = setup
+
+    # We don't need to mock the adapter anymore, just the installer logic
+    # In a real scenario, the ToolInstallerAgent would handle this.
+    # Here, we just check if it was called.
     await orchestrator.execute("whois google.com")
-    assert whois_adapter.install_called is True
+    assert tool_installer.install_if_needed_called is True
+    assert tool_installer.install_if_needed_tool.name == "whois"
 
 @pytest.mark.asyncio
-async def test_install_tool_fails(setup, whois_tool):
-    orchestrator, tool_adapters, _, _, _, _ = setup
-    whois_tool.is_installed = False # Override installed status
-    whois_adapter = tool_adapters["whois"]
-    whois_adapter.install_tool = lambda tool: False
+async def test_install_tool_fails(setup):
+    orchestrator, _, _, _, tool_installer, _, _ = setup
+
+    # To simulate an installation failure, we can mock the installer agent
+    def fake_install_fail(tool):
+        raise RuntimeError(f"Failed to install tool '{tool.name}'.")
+    tool_installer.install_if_needed = fake_install_fail
 
     result = await orchestrator.execute("whois google.com")
 
@@ -200,12 +207,14 @@ async def test_error_analyst_is_called_on_failure(nmap_tool):
     audit_logger = MockAuditLogger()
     consent_service = MockConsentService()
     execution_history = MockExecutionHistory()
+    tool_installer = MockToolInstallerAgent()
 
     orchestrator = OrchestratorAgent(
         parser=RegexCommandParserAdapter(),
         tool_adapters=tool_adapters,
         report_generators=report_generators,
         error_analyst=error_analyst,
+        tool_installer=tool_installer,
         logger=MockLogger(),
         config=config,
         audit_logger=audit_logger,

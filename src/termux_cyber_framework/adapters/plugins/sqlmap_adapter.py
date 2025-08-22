@@ -28,29 +28,6 @@ class SqlmapAdapter(GenericRunner, ToolAdapterPort):
             )
         return None
 
-    def check_if_installed(self, tool: Tool) -> bool:
-        return os.path.exists(self.tool_path)
-
-    def install_tool(self, tool: Tool) -> bool:
-        if not self.config.allow_system_install:
-            print(f"[-] System-level installation for '{tool.name}' is not allowed by policy.")
-            return False
-
-        try:
-            process = self._command_runner.run(["git", "clone", "https://github.com/sqlmapproject/sqlmap.git", self.tool_path])
-            if self.logger:
-                log_file = f"logs/install-{tool.name}.log"
-                with open(log_file, "w") as f:
-                    f.write(process.stdout)
-                    f.write(process.stderr)
-            return process.returncode == 0
-        except Exception as e:
-            if self.logger:
-                log_file = f"logs/install-{tool.name}-error.log"
-                with open(log_file, "w") as f:
-                    f.write(str(e))
-            return False
-
     def _parse_output(self, output: str) -> list:
         findings = []
         # Example parsing logic, can be expanded

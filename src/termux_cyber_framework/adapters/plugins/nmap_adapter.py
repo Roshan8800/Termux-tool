@@ -19,6 +19,7 @@ class NmapAdapter(GenericRunner, ToolAdapterPort):
 
     def find_tool(self, name: str = "nmap"):
         if name == "nmap":
+            # This tool definition could also be loaded from the catalog
             return Tool(
                 name="nmap",
                 description="Network scanner",
@@ -26,29 +27,6 @@ class NmapAdapter(GenericRunner, ToolAdapterPort):
                 run_command="nmap"
             )
         return None
-
-    def check_if_installed(self, tool: Tool) -> bool:
-        return shutil.which("nmap") is not None
-
-    def install_tool(self, tool: Tool) -> bool:
-        if not self.config.allow_system_install:
-            print(f"[-] System-level installation for '{tool.name}' is not allowed by policy.")
-            return False
-
-        try:
-            process = self._command_runner.run(["pkg", "install", "nmap", "-y"])
-            if self.logger:
-                log_file = f"logs/install-{tool.name}.log"
-                with open(log_file, "w") as f:
-                    f.write(process.stdout)
-                    f.write(process.stderr)
-            return process.returncode == 0
-        except Exception as e:
-            if self.logger:
-                log_file = f"logs/install-{tool.name}-error.log"
-                with open(log_file, "w") as f:
-                    f.write(str(e))
-            return False
 
     def _is_cidr(self, s: str) -> bool:
         try:

@@ -17,6 +17,7 @@ from termux_cyber_framework.core.use_cases.ports import (
     LogLevel
 )
 from termux_cyber_framework.agents.error_analyst_agent import ErrorAnalystAgent
+from termux_cyber_framework.agents.tool_installer_agent import ToolInstallerAgent
 
 
 class OrchestratorAgent:
@@ -30,6 +31,7 @@ class OrchestratorAgent:
         tool_adapters: Dict[str, ToolAdapterPort],
         report_generators: List[ReportGeneratorPort],
         error_analyst: ErrorAnalystAgent,
+        tool_installer: ToolInstallerAgent,
         logger: LoggerPort,
         config: Config,
         audit_logger: AuditLoggerPort,
@@ -40,6 +42,7 @@ class OrchestratorAgent:
         self.tool_adapters = tool_adapters
         self.report_generators = report_generators
         self.error_analyst = error_analyst
+        self.tool_installer = tool_installer
         self.logger = logger
         self.config = config
         self.audit_logger = audit_logger
@@ -58,15 +61,8 @@ class OrchestratorAgent:
         if not tool:
             raise ValueError(f"Tool '{command.tool_name}' not found by adapter.")
 
-        if not adapter.check_if_installed(tool):
-             self.logger.log(f"Tool '{command.tool_name}' is not installed. Attempting installation.")
-             if not self.config.dry_run:
-                 if not adapter.install_tool(tool):
-                     self.logger.log(f"Failed to install tool '{command.tool_name}'.", level=LogLevel.ERROR)
-                     raise RuntimeError(f"Failed to install tool '{command.tool_name}'.")
-                 self.logger.log(f"Tool '{command.tool_name}' installed successfully.")
-             else:
-                self.logger.log(f"Dry run: Skipping installation of tool '{command.tool_name}'.", level=LogLevel.INFO)
+        # Delegate installation to the ToolInstallerAgent
+        self.tool_installer.install_if_needed(tool)
 
         self.logger.log(f"Using adapter '{adapter.__class__.__name__}' for command '{command.tool_name}'.")
 

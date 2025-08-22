@@ -51,6 +51,6 @@ class PluginManager:
                     self.logger.log(f"Failed to load adapter '{tool.adapter_class}' for tool '{tool.name}': {e}", level=LogLevel.ERROR)
             else:
                 # Use the GenericToolAdapter for tools with no specific adapter class
-                adapters[tool.name] = GenericToolAdapter(tool=tool, command_runner=self.command_runner, logger=self.logger, config=self.config, installers=self.installers)
+                adapters[tool.name] = GenericToolAdapter(tool=tool, command_runner=self.command_runner, logger=self.logger, config=self.config)
 
         return adapters

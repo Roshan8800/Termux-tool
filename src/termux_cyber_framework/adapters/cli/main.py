@@ -14,6 +14,7 @@ from termux_cyber_framework.adapters.persistence.execution_history import Execut
 from termux_cyber_framework.adapters.audit_logger.file_audit_logger import FileAuditLogger
 from termux_cyber_framework.agents.logger_agent import LoggerAgent
 from termux_cyber_framework.agents.error_analyst_agent import ErrorAnalystAgent
+from termux_cyber_framework.agents.tool_installer_agent import ToolInstallerAgent
 from termux_cyber_framework.adapters.tool_installer.git_installer import GitInstallerAdapter
 from termux_cyber_framework.adapters.tool_installer.pip_installer import PipInstallerAdapter
 from termux_cyber_framework.adapters.tool_installer.pkg_installer import PkgInstallerAdapter
@@ -70,12 +71,14 @@ def build_agent_system(
     # --- Agent Construction ---
     # TODO: The API key should not be hardcoded.
     error_analyst = ErrorAnalystAgent(api_key="AIzaSyB8B_5EXGahUCGiII5xAhqmX0YroSmvVek")
+    tool_installer = ToolInstallerAgent(installers=installers, logger=logger, config=config)
 
     return OrchestratorAgent(
         parser=command_parser,
         tool_adapters=tool_adapters,
         report_generators=report_generators,
         error_analyst=error_analyst,
+        tool_installer=tool_installer,
         logger=logger,
         config=config,
         audit_logger=audit_logger,
