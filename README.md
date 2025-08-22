@@ -58,7 +58,7 @@ Some of the Python packages this tool depends on (like `pydantic` and `grpcio`) 
 
 **On Termux, run this command first:**
 ```bash
-pkg install build-essential python-dev rust -y
+pkg install build-essential python rust -y
 ```
 
 **On Debian-based systems (Kali, Parrot), run this command first:**
