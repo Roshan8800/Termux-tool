@@ -15,6 +15,10 @@ from termux_cyber_framework.adapters.audit_logger.file_audit_logger import FileA
 from termux_cyber_framework.adapters.logger.file_logger import FileLoggerAdapter
 from termux_cyber_framework.adapters.error_fixer.simple_ai_fixer import SimpleAiFixerAdapter
 from termux_cyber_framework.adapters.doctor.regex_doctor import RegexDoctorAdapter
+from termux_cyber_framework.adapters.tool_installer.git_installer import GitInstallerAdapter
+from termux_cyber_framework.adapters.tool_installer.pip_installer import PipInstallerAdapter
+from termux_cyber_framework.adapters.tool_installer.pkg_installer import PkgInstallerAdapter
+from termux_cyber_framework.adapters.logger.install_logger import InstallLogger
 from rich.console import Console
 from rich.panel import Panel
 
@@ -50,7 +54,15 @@ def build_use_case(
     # Ports -> Adapters
     command_parser = parser or AIInterpreter(tool_catalog_path=tool_catalog_path)
 
-    plugin_manager = PluginManager(config=config, command_runner=command_runner, logger=logger)
+    # Create installer strategies
+    install_logger = InstallLogger()
+    installers = {
+        "git": GitInstallerAdapter(command_runner, install_logger),
+        "pip": PipInstallerAdapter(command_runner, install_logger),
+        "pkg": PkgInstallerAdapter(command_runner, install_logger)
+    }
+
+    plugin_manager = PluginManager(config=config, command_runner=command_runner, logger=logger, installers=installers)
     tool_adapters = plugin_manager.load_plugins()
 
     report_generators = [TxtReporter(), JsonReporter()]

@@ -191,11 +191,14 @@ async def test_end_to_end_git_install_command(cleanup_files, cleanup_cloned_tool
 
 
 @pytest.mark.asyncio
-async def test_system_install_disallowed(cleanup_files):
+async def test_system_install_disallowed(cleanup_files, monkeypatch):
     """
     Tests that a system-level installation is blocked when disallowed by policy.
     """
     # Arrange
+    # Mock shutil.which to simulate the tool not being installed
+    monkeypatch.setattr("shutil.which", lambda x: None)
+
     mock_runner = MockCommandRunner()
     config = Config(allow_system_install=False)
     consent_service = MockConsentService(consent_to_give=True)
@@ -219,13 +222,22 @@ async def test_system_install_disallowed(cleanup_files):
 
 
 @pytest.mark.asyncio
-async def test_install_logging(cleanup_files):
+async def test_install_logging(cleanup_files, monkeypatch):
     """
     Tests that installation output is logged correctly.
     """
     # Arrange
+    # Mock shutil.which to simulate the tool not being installed, but the package manager being present.
+    def mock_which(cmd):
+        if cmd == "whois":
+            return None
+        return f"/usr/bin/{cmd}"
+    monkeypatch.setattr("shutil.which", mock_which)
+    monkeypatch.setattr("os.geteuid", lambda: 1000) # run as non-root to trigger sudo
+
     mock_runner = MockCommandRunner({
-                "pkg install whois -y": {"returncode": 0, "stdout": "installing whois...", "stderr": "some warning"},
+                "sudo apt-get update": {"returncode": 0},
+                "sudo apt-get install whois -y": {"returncode": 0, "stdout": "installing whois...", "stderr": "some warning"},
             "whois google.com": {"returncode": 0, "stdout": "Registrant Organization: Google LLC"}
     })
     config = Config(allow_system_install=True)
@@ -278,3 +290,34 @@ async def test_dry_run_flag(cleanup_files):
     assert result.success is True
     assert "Dry run: command not executed" in result.output
     assert mock_runner.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_end_to_end_ping_command(cleanup_files):
+    """
+    Tests the end-to-end flow for a system command like 'ping'.
+    """
+    # Arrange
+    mock_runner = MockCommandRunner({
+        "ping -c 4 google.com": {"returncode": 0, "stdout": "64 bytes from ..."}
+    })
+    config = Config(allow_system_install=True)
+    consent_service = MockConsentService(consent_to_give=True)
+    execution_history = MockExecutionHistory()
+    use_case = build_use_case(
+        command_runner=mock_runner,
+        config=config,
+        consent_service=consent_service,
+        execution_history=execution_history,
+        parser=MockAIInterpreter()
+    )
+    command = "ping -c 4 google.com"
+
+    # Act
+    result = await use_case.execute(command)
+
+    # Assert
+    assert result.success is True
+    assert result.error is None
+    assert "64 bytes from" in result.output
+    assert result.command.tool_name == "ping"

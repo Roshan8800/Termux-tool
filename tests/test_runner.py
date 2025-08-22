@@ -1,5 +1,5 @@
 import pytest
-from termux_cyber_framework.adapters.plugins.generic_runner import GenericRunner
+from termux_cyber_framework.adapters.tool_runner.generic_runner import GenericRunner
 from termux_cyber_framework.adapters.plugins.nmap_adapter import NmapAdapter
 from termux_cyber_framework.adapters.plugins.sqlmap_adapter import SqlmapAdapter
 from termux_cyber_framework.core.domain.models import Tool, Command, InstallInfo

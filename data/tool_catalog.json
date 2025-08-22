@@ -7,7 +7,7 @@
             "source": "nmap"
         },
         "run_command": "nmap",
-        "adapter_class": "termux_cyber_framework.adapters.tool_runner.nmap_adapter.NmapAdapter"
+        "adapter_class": "termux_cyber_framework.adapters.plugins.nmap_adapter.NmapAdapter"
     },
     {
         "name": "sqlmap",
@@ -19,7 +19,7 @@
             "health_check": "python3 tools/sqlmap/sqlmap.py --version"
         },
         "run_command": "python3 tools/sqlmap/sqlmap.py",
-        "adapter_class": "termux_cyber_framework.adapters.tool_runner.sqlmap_adapter.SqlmapAdapter"
+        "adapter_class": "termux_cyber_framework.adapters.plugins.sqlmap_adapter.SqlmapAdapter"
     },
     {
         "name": "whois",
@@ -41,6 +41,16 @@
             "bin_name": null
         },
         "run_command": null,
+        "adapter_class": null
+    },
+    {
+        "name": "ping",
+        "description": "A utility to test the reachability of a host on an Internet Protocol network.",
+        "install_info": {
+            "method": "pkg",
+            "source": "inetutils"
+        },
+        "run_command": "ping",
         "adapter_class": null
     }
 ]

@@ -1,7 +1,7 @@
 import ipaddress
 import shutil
 import subprocess
-from .generic_runner import GenericRunner
+from termux_cyber_framework.adapters.tool_runner.generic_runner import GenericRunner
 from termux_cyber_framework.core.domain.models import Command, Tool, ExecutionResult, InstallInfo
 from termux_cyber_framework.core.domain.config import Config
 from termux_cyber_framework.core.domain.run_paths import RunPaths
