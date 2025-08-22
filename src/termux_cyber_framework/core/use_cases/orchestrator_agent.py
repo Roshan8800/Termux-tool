@@ -18,10 +18,10 @@ from termux_cyber_framework.core.use_cases.ports import (
 )
 
 
-class RunToolUseCase:
+class OrchestratorAgent:
     """
-    Orchestrates the entire process of running a command from user input,
-    using tool-specific adapters and an AI-powered error fixer.
+    Acts as the brain of the system, orchestrating the entire process of
+    running a command from user input.
     """
     def __init__(
         self,

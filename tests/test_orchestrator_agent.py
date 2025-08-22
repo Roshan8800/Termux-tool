@@ -15,7 +15,7 @@ from termux_cyber_framework.core.use_cases.ports import (
     AuditLoggerPort,
     ConsentPort
 )
-from termux_cyber_framework.core.use_cases.run_tool_use_case import RunToolUseCase
+from termux_cyber_framework.core.use_cases.orchestrator_agent import OrchestratorAgent
 from termux_cyber_framework.adapters.command_parser.regex_parser import RegexCommandParserAdapter
 from tests.mocks import MockAuditLogger, MockExecutionHistory
 
@@ -135,7 +135,7 @@ def setup(nmap_tool, whois_tool):
     audit_logger = MockAuditLogger()
     consent_service = MockConsentService()
     execution_history = MockExecutionHistory()
-    use_case = RunToolUseCase(
+    use_case = OrchestratorAgent(
         parser=RegexCommandParserAdapter(), # Using the real regex parser
         tool_adapters=tool_adapters,
         report_generators=report_generators,
@@ -206,7 +206,7 @@ async def test_orchestrator_attempts_to_fix_and_rerun_on_failure(nmap_tool):
     audit_logger = MockAuditLogger()
     consent_service = MockConsentService()
     execution_history = MockExecutionHistory()
-    use_case = RunToolUseCase(
+    use_case = OrchestratorAgent(
         parser=RegexCommandParserAdapter(),
         tool_adapters=tool_adapters,
         report_generators=report_generators,
@@ -251,7 +251,7 @@ async def test_doctor_retry(nmap_tool):
     audit_logger = MockAuditLogger()
     consent_service = MockConsentService()
     execution_history = MockExecutionHistory()
-    use_case = RunToolUseCase(
+    use_case = OrchestratorAgent(
         parser=RegexCommandParserAdapter(),
         tool_adapters=tool_adapters,
         report_generators=report_generators,

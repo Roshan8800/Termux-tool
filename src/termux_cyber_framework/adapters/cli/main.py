@@ -2,7 +2,7 @@ import asyncio
 import typer
 import os
 from typing import Optional
-from termux_cyber_framework.core.use_cases.run_tool_use_case import RunToolUseCase
+from termux_cyber_framework.core.use_cases.orchestrator_agent import OrchestratorAgent
 from termux_cyber_framework.core.command_runner import CommandRunner
 from termux_cyber_framework.core.domain.config import Config
 from termux_cyber_framework.core.use_cases.consent.consent_service import ConsentService
@@ -12,7 +12,7 @@ from termux_cyber_framework.adapters.report_generator.txt_reporter import TxtRep
 from termux_cyber_framework.adapters.report_generator.json_reporter import JsonReporter
 from termux_cyber_framework.adapters.persistence.execution_history import ExecutionHistory
 from termux_cyber_framework.adapters.audit_logger.file_audit_logger import FileAuditLogger
-from termux_cyber_framework.adapters.logger.file_logger import FileLoggerAdapter
+from termux_cyber_framework.agents.logger_agent import LoggerAgent
 from termux_cyber_framework.adapters.error_fixer.simple_ai_fixer import SimpleAiFixerAdapter
 from termux_cyber_framework.adapters.doctor.regex_doctor import RegexDoctorAdapter
 from termux_cyber_framework.adapters.tool_installer.git_installer import GitInstallerAdapter
@@ -28,15 +28,15 @@ app = typer.Typer(add_completion=False)
 
 from termux_cyber_framework.core.use_cases.ports import CommandParserPort
 
-def build_use_case(
+def build_agent_system(
     command_runner: Optional[CommandRunner] = None,
     config: Optional[Config] = None,
     consent_service: Optional[ConsentService] = None,
     execution_history: Optional[ExecutionHistory] = None,
     parser: Optional[CommandParserPort] = None
-) -> RunToolUseCase:
+) -> OrchestratorAgent:
     """
-    Composition Root: Constructs and wires all adapters and use cases.
+    Composition Root: Constructs and wires all agents and components.
     """
     # --- Adapters Initialization ---
 
@@ -44,7 +44,7 @@ def build_use_case(
     command_runner = command_runner or CommandRunner()
     consent_service = consent_service or ConsentService()
     execution_history = execution_history or ExecutionHistory()
-    logger = FileLoggerAdapter()
+    logger = LoggerAgent()
 
     # Correctly locate the project root to find the data directory
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
@@ -74,9 +74,9 @@ def build_use_case(
         logger=logger
     )
 
-    # --- Use Case Construction ---
+    # --- Agent Construction ---
 
-    return RunToolUseCase(
+    return OrchestratorAgent(
         parser=command_parser,
         tool_adapters=tool_adapters,
         report_generators=report_generators,
@@ -126,10 +126,10 @@ def run(
     and executing it using the best available runner.
     """
     config = Config(dry_run=dry_run)
-    use_case = build_use_case(config=config)
+    orchestrator = build_agent_system(config=config)
 
     async def main():
-        await use_case.execute(command)
+        await orchestrator.execute(command)
 
     asyncio.run(main())
 

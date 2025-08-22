@@ -5,7 +5,7 @@ import asyncio
 import re
 import json
 from glob import glob
-from termux_cyber_framework.adapters.cli.main import build_use_case
+from termux_cyber_framework.adapters.cli.main import build_agent_system
 from termux_cyber_framework.core.domain.config import Config
 from .mocks import MockCommandRunner, MockConsentService, MockExecutionHistory, MockAIInterpreter
 from termux_cyber_framework.core.domain.models import ExecutionResult
@@ -51,7 +51,7 @@ async def test_end_to_end_whois_command_with_mock_ai(cleanup_files):
     config = Config(allow_system_install=True)
     consent_service = MockConsentService(consent_to_give=True)
     execution_history = MockExecutionHistory()
-    use_case = build_use_case(
+    orchestrator = build_agent_system(
         command_runner=mock_runner,
         config=config,
         consent_service=consent_service,
@@ -62,7 +62,7 @@ async def test_end_to_end_whois_command_with_mock_ai(cleanup_files):
 
     # Act
     # Execute the command through the orchestrator
-    result = await use_case.execute(command)
+    result = await orchestrator.execute(command)
 
     # Assert
     # 1. Assert the command was successful
@@ -117,7 +117,7 @@ async def test_end_to_end_with_real_ai(cleanup_files):
     config = Config(allow_system_install=True)
     consent_service = MockConsentService(consent_to_give=True)
     execution_history = MockExecutionHistory()
-    use_case = build_use_case(
+    orchestrator = build_agent_system(
         command_runner=mock_runner,
         config=config,
         consent_service=consent_service,
@@ -126,7 +126,7 @@ async def test_end_to_end_with_real_ai(cleanup_files):
     command = "scan example.com with nmap"
 
     # Act
-    result = await use_case.execute(command)
+    result = await orchestrator.execute(command)
 
     # Assert
     assert result.success is True
@@ -147,7 +147,7 @@ async def test_end_to_end_git_install_command(cleanup_files, cleanup_cloned_tool
     config = Config(allow_system_install=True)
     consent_service = MockConsentService(consent_to_give=True)
     execution_history = MockExecutionHistory()
-    use_case = build_use_case(
+    orchestrator = build_agent_system(
         command_runner=mock_runner,
         config=config,
         consent_service=consent_service,
@@ -158,7 +158,7 @@ async def test_end_to_end_git_install_command(cleanup_files, cleanup_cloned_tool
     command = "sqlmap --version"
 
     # Act
-    result = await use_case.execute(command)
+    result = await orchestrator.execute(command)
 
     # Assert
     # 1. Assert that the command was successful
@@ -203,7 +203,7 @@ async def test_system_install_disallowed(cleanup_files, monkeypatch):
     config = Config(allow_system_install=False)
     consent_service = MockConsentService(consent_to_give=True)
     execution_history = MockExecutionHistory()
-    use_case = build_use_case(
+    orchestrator = build_agent_system(
         command_runner=mock_runner,
         config=config,
         consent_service=consent_service,
@@ -213,7 +213,7 @@ async def test_system_install_disallowed(cleanup_files, monkeypatch):
     command = "whois google.com"
 
     # Act
-    result = await use_case.execute(command)
+    result = await orchestrator.execute(command)
 
     # Assert
     assert result.success is False
@@ -243,7 +243,7 @@ async def test_install_logging(cleanup_files, monkeypatch):
     config = Config(allow_system_install=True)
     consent_service = MockConsentService(consent_to_give=True)
     execution_history = MockExecutionHistory()
-    use_case = build_use_case(
+    orchestrator = build_agent_system(
         command_runner=mock_runner,
         config=config,
         consent_service=consent_service,
@@ -253,7 +253,7 @@ async def test_install_logging(cleanup_files, monkeypatch):
     command = "whois google.com"
 
     # Act
-    await use_case.execute(command)
+    await orchestrator.execute(command)
 
     # Assert
     log_file = "logs/install-whois.log"
@@ -274,7 +274,7 @@ async def test_dry_run_flag(cleanup_files):
     config = Config(dry_run=True)
     consent_service = MockConsentService(consent_to_give=True)
     execution_history = MockExecutionHistory()
-    use_case = build_use_case(
+    orchestrator = build_agent_system(
         command_runner=mock_runner,
         config=config,
         consent_service=consent_service,
@@ -284,7 +284,7 @@ async def test_dry_run_flag(cleanup_files):
     command = "whois google.com"
 
     # Act
-    result = await use_case.execute(command)
+    result = await orchestrator.execute(command)
 
     # Assert
     assert result.success is True
@@ -304,7 +304,7 @@ async def test_end_to_end_ping_command(cleanup_files):
     config = Config(allow_system_install=True)
     consent_service = MockConsentService(consent_to_give=True)
     execution_history = MockExecutionHistory()
-    use_case = build_use_case(
+    orchestrator = build_agent_system(
         command_runner=mock_runner,
         config=config,
         consent_service=consent_service,
@@ -314,7 +314,7 @@ async def test_end_to_end_ping_command(cleanup_files):
     command = "ping -c 4 google.com"
 
     # Act
-    result = await use_case.execute(command)
+    result = await orchestrator.execute(command)
 
     # Assert
     assert result.success is True
