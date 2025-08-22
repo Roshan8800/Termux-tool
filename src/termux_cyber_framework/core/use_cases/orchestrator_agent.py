@@ -16,6 +16,7 @@ from termux_cyber_framework.core.use_cases.ports import (
     ConsentPort,
     LogLevel
 )
+from termux_cyber_framework.agents.error_analyst_agent import ErrorAnalystAgent
 
 
 class OrchestratorAgent:
@@ -28,10 +29,9 @@ class OrchestratorAgent:
         parser: CommandParserPort,
         tool_adapters: Dict[str, ToolAdapterPort],
         report_generators: List[ReportGeneratorPort],
-        error_fixer: ErrorFixerPort,
+        error_analyst: ErrorAnalystAgent,
         logger: LoggerPort,
         config: Config,
-        doctor: DoctorPort,
         audit_logger: AuditLoggerPort,
         consent_service: ConsentPort,
         execution_history: ExecutionHistory
@@ -39,10 +39,9 @@ class OrchestratorAgent:
         self.parser = parser
         self.tool_adapters = tool_adapters
         self.report_generators = report_generators
-        self.error_fixer = error_fixer
+        self.error_analyst = error_analyst
         self.logger = logger
         self.config = config
-        self.doctor = doctor
         self.audit_logger = audit_logger
         self.consent_service = consent_service
         self.execution_history = execution_history
@@ -122,16 +121,12 @@ class OrchestratorAgent:
             result = await self._run_command_flow(command)
             result.consent_given = consent_given
 
-            # If the first attempt fails, try to fix it
+            # If the command fails, consult the error analyst
             if not result.success and result.error:
-                self.logger.log("Initial command failed. Consulting AI error fixer...", level=LogLevel.WARNING)
-                fixed_command = await self.error_fixer.suggest_fix(result.error, command)
-
-                if fixed_command:
-                    self.logger.log(f"AI suggests a fix: '{fixed_command.raw_command}'. Retrying...")
-                    result = await self._run_command_flow(fixed_command)
-                else:
-                    self.logger.log("AI had no suggestion. Reporting initial failure.")
+                self.logger.log("Command failed. Consulting Error Analyst Agent...", level=LogLevel.WARNING)
+                analysis = await self.error_analyst.analyze_error(result.command, result.error)
+                result.error.ai_analysis = analysis
+                self.logger.log(f"Error analysis received:\n{analysis}", level=LogLevel.DEBUG)
 
         except (ValueError, RuntimeError) as e:
             self.logger.log(f"A critical error occurred: {e}", level=LogLevel.ERROR)
@@ -146,15 +141,6 @@ class OrchestratorAgent:
                 start_time=now,
                 end_time=now
             )
-
-        if not result.success and result.error:
-            self.logger.log("Command failed, running doctor.", level=LogLevel.INFO)
-            remediations = self.doctor.diagnose(result.error, result.command)
-            if remediations:
-                self.logger.log(f"Doctor found {len(remediations)} potential remediations.", level=LogLevel.INFO)
-                # For now, we just log the remediations. A more advanced implementation
-                # could present them to the user or attempt to re-run the command.
-                result.error.fix_suggestion = str(remediations)
 
         self.logger.log("Generating reports.")
         artifact_paths = []

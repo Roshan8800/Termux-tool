@@ -13,8 +13,7 @@ from termux_cyber_framework.adapters.report_generator.json_reporter import JsonR
 from termux_cyber_framework.adapters.persistence.execution_history import ExecutionHistory
 from termux_cyber_framework.adapters.audit_logger.file_audit_logger import FileAuditLogger
 from termux_cyber_framework.agents.logger_agent import LoggerAgent
-from termux_cyber_framework.adapters.error_fixer.simple_ai_fixer import SimpleAiFixerAdapter
-from termux_cyber_framework.adapters.doctor.regex_doctor import RegexDoctorAdapter
+from termux_cyber_framework.agents.error_analyst_agent import ErrorAnalystAgent
 from termux_cyber_framework.adapters.tool_installer.git_installer import GitInstallerAdapter
 from termux_cyber_framework.adapters.tool_installer.pip_installer import PipInstallerAdapter
 from termux_cyber_framework.adapters.tool_installer.pkg_installer import PkgInstallerAdapter
@@ -67,23 +66,18 @@ def build_agent_system(
 
     report_generators = [TxtReporter(), JsonReporter()]
     audit_logger = FileAuditLogger()
-    error_fixer = SimpleAiFixerAdapter()
-    doctor = RegexDoctorAdapter(
-        rules_path=doctor_rules_path,
-        command_runner=command_runner,
-        logger=logger
-    )
 
     # --- Agent Construction ---
+    # TODO: The API key should not be hardcoded.
+    error_analyst = ErrorAnalystAgent(api_key="AIzaSyB8B_5EXGahUCGiII5xAhqmX0YroSmvVek")
 
     return OrchestratorAgent(
         parser=command_parser,
         tool_adapters=tool_adapters,
         report_generators=report_generators,
-        error_fixer=error_fixer,
+        error_analyst=error_analyst,
         logger=logger,
         config=config,
-        doctor=doctor,
         audit_logger=audit_logger,
         consent_service=consent_service,
         execution_history=execution_history

@@ -41,6 +41,7 @@ class Error(BaseModel):
     error_code: Optional[int] = Field(None, description="The exit code of the failed command.")
     message: str = Field(..., description="The error message or stderr output.")
     fix_suggestion: Optional[str] = Field(None, description="A potential fix or suggestion for the error.")
+    ai_analysis: Optional[str] = Field(None, description="An AI-generated analysis of the error.")
 
 class ExecutionResult(BaseModel):
     """

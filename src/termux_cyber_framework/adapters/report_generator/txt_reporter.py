@@ -47,6 +47,9 @@ class TxtReporter(ReportGeneratorPort):
                 f.write(f"Status: {'Success' if result.success else 'Failure'}\n")
                 if result.error:
                     f.write(f"Error Message: {result.error.message}\n")
+                    if result.error.ai_analysis:
+                        f.write("\n--- AI Error Analysis ---\n")
+                        f.write(f"{result.error.ai_analysis}\n")
                 f.write(f"User Consent: {result.consent_given}\n")
                 f.write(f"Report Generated: {paths.summary_file}\n")
                 f.write(f"Full output logged to: {paths.output_log_file}\n")

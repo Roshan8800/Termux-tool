@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import AsyncMock
 from typing import Optional, List, Dict
 from datetime import datetime
 from termux_cyber_framework.core.domain.models import Command, Tool, ExecutionResult, Error, InstallInfo, Remediation
@@ -98,6 +99,10 @@ class MockErrorFixer(ErrorFixerPort):
     async def suggest_fix(self, error: Error, command: Command) -> Optional[Command]:
         return None # Default to no fix
 
+class MockErrorAnalystAgent:
+    async def analyze_error(self, command: Command, error: Error) -> str:
+        return "Mock AI analysis of the error."
+
 # --- Test Fixtures ---
 
 @pytest.fixture
@@ -127,146 +132,91 @@ def setup(nmap_tool, whois_tool):
     }
 
     report_generators = [MockReportGenerator()]
-    error_fixer = MockErrorFixer()
+    error_analyst = MockErrorAnalystAgent()
     logger = MockLogger()
 
     config = Config(allow_system_install=True)
-    doctor = MockDoctor()
     audit_logger = MockAuditLogger()
     consent_service = MockConsentService()
     execution_history = MockExecutionHistory()
-    use_case = OrchestratorAgent(
-        parser=RegexCommandParserAdapter(), # Using the real regex parser
+    orchestrator = OrchestratorAgent(
+        parser=RegexCommandParserAdapter(),
         tool_adapters=tool_adapters,
         report_generators=report_generators,
-        error_fixer=error_fixer,
+        error_analyst=error_analyst,
         logger=logger,
         config=config,
-        doctor=doctor,
         audit_logger=audit_logger,
         consent_service=consent_service,
         execution_history=execution_history
     )
-    return use_case, tool_adapters, report_generators, error_fixer, nmap_runner, whois_runner
+    return orchestrator, tool_adapters, report_generators, error_analyst, nmap_runner, whois_runner
 
 # --- Test Cases ---
 
 @pytest.mark.asyncio
 async def test_uses_specific_runner_when_available(setup):
-    use_case, _, _, _, nmap_runner, whois_runner = setup
-    await use_case.execute("nmap -sV localhost")
+    orchestrator, _, _, _, nmap_runner, whois_runner = setup
+    await orchestrator.execute("nmap -sV localhost")
     assert nmap_runner.call_count == 1
     assert whois_runner.call_count == 0
 
 @pytest.mark.asyncio
 async def test_installs_tool_if_not_installed(setup, whois_tool):
-    use_case, tool_adapters, _, _, _, _ = setup
+    orchestrator, tool_adapters, _, _, _, _ = setup
     whois_tool.is_installed = False # Override installed status
     whois_adapter = tool_adapters["whois"]
-    await use_case.execute("whois google.com")
+    await orchestrator.execute("whois google.com")
     assert whois_adapter.install_called is True
 
 @pytest.mark.asyncio
 async def test_install_tool_fails(setup, whois_tool):
-    use_case, tool_adapters, _, _, _, _ = setup
+    orchestrator, tool_adapters, _, _, _, _ = setup
     whois_tool.is_installed = False # Override installed status
     whois_adapter = tool_adapters["whois"]
     whois_adapter.install_tool = lambda tool: False
 
-    result = await use_case.execute("whois google.com")
+    result = await orchestrator.execute("whois google.com")
 
     assert result.success is False
     assert "Failed to install tool" in result.error.message
 
 @pytest.mark.asyncio
-async def test_orchestrator_attempts_to_fix_and_rerun_on_failure(nmap_tool):
+async def test_error_analyst_is_called_on_failure(nmap_tool):
     """
-    Tests the self-healing flow: first run fails, fixer is called, command is re-run.
-    """
-    # Arrange
-    nmap_runner = MockToolRunner("NmapRunner", fail_on_first_run=True)
-    sudo_runner = MockToolRunner("SudoRunner")
-
-    nmap_adapter = MockToolAdapter(nmap_runner, nmap_tool)
-    sudo_tool = Tool(name="sudo", description="Sudo", install_info=InstallInfo(method="pkg", source="sudo"), run_command="sudo", is_installed=True)
-    sudo_adapter = MockToolAdapter(sudo_runner, sudo_tool)
-
-    tool_adapters = {"nmap": nmap_adapter, "sudo": sudo_adapter}
-    report_generators = [MockReportGenerator()]
-
-    fixed_command = Command(tool_name="sudo", args=["nmap"], raw_command="sudo nmap")
-    error_fixer = MockErrorFixer()
-    async def suggest_fix_async(error, command):
-        error_fixer.suggest_fix_called = True
-        return fixed_command
-    error_fixer.suggest_fix = suggest_fix_async
-
-    config = Config(allow_system_install=True)
-    doctor = MockDoctor()
-    audit_logger = MockAuditLogger()
-    consent_service = MockConsentService()
-    execution_history = MockExecutionHistory()
-    use_case = OrchestratorAgent(
-        parser=RegexCommandParserAdapter(),
-        tool_adapters=tool_adapters,
-        report_generators=report_generators,
-        error_fixer=error_fixer,
-        logger=MockLogger(),
-        config=config,
-        doctor=doctor,
-        audit_logger=audit_logger,
-        consent_service=consent_service,
-        execution_history=execution_history
-    )
-
-    # Act
-    final_report = await use_case.execute("nmap -p 80 localhost")
-
-    # Assert
-    assert error_fixer.suggest_fix_called is True
-    assert nmap_runner.call_count == 1
-    assert sudo_runner.call_count == 1
-    assert final_report.success is True
-    assert "Executed by SudoRunner" in final_report.output
-
-@pytest.mark.asyncio
-async def test_doctor_retry(nmap_tool):
-    """
-    Tests that the doctor is called on failure and a fix is attempted.
+    Tests that the ErrorAnalystAgent is called when a command fails.
     """
     # Arrange
     nmap_runner = MockToolRunner("NmapRunner", fail_on_first_run=True)
     nmap_adapter = MockToolAdapter(nmap_runner, nmap_tool)
     tool_adapters = {"nmap": nmap_adapter}
-
     report_generators = [MockReportGenerator()]
-    error_fixer = MockErrorFixer()
-    doctor = MockDoctor()
+    error_analyst = MockErrorAnalystAgent()
 
-    fix_command = Command(tool_name="echo", args=["hello"], raw_command="echo hello")
-    remediation = Remediation(description="A test fix", command=fix_command)
-    doctor.diagnose = lambda error, command: [remediation]
+    # Spy on the analyze_error method
+    error_analyst.analyze_error = AsyncMock(wraps=error_analyst.analyze_error)
 
     config = Config(allow_system_install=True)
     audit_logger = MockAuditLogger()
     consent_service = MockConsentService()
     execution_history = MockExecutionHistory()
-    use_case = OrchestratorAgent(
+
+    orchestrator = OrchestratorAgent(
         parser=RegexCommandParserAdapter(),
         tool_adapters=tool_adapters,
         report_generators=report_generators,
-        error_fixer=error_fixer,
+        error_analyst=error_analyst,
         logger=MockLogger(),
         config=config,
-        doctor=doctor,
         audit_logger=audit_logger,
         consent_service=consent_service,
         execution_history=execution_history
     )
 
     # Act
-    final_report = await use_case.execute("nmap -p 80 localhost")
+    result = await orchestrator.execute("nmap -p 80 localhost")
 
     # Assert
-    assert nmap_runner.call_count == 1
-    assert final_report.success is False
+    assert result.success is False
+    assert result.error.ai_analysis == "Mock AI analysis of the error."
+    error_analyst.analyze_error.assert_called_once()

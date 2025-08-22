@@ -43,6 +43,7 @@ class JsonReporter(ReportGeneratorPort):
             "exit_code": result.error.error_code if result.error else 0,
             "status": "Success" if result.success else "Failure",
             "error_message": result.error.message if result.error else None,
+            "ai_error_analysis": result.error.ai_analysis if result.error else None,
             "user_consent": result.consent_given,
             "report_generated": str(paths.summary_file),
             "output_log_file": str(paths.output_log_file),
