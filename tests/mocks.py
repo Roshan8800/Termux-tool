@@ -36,7 +36,7 @@ class MockExecutionHistory:
     def append(self, result: ExecutionResult):
         self.history.append(result)
 
-class MockConsentService(ConsentPort):
+class MockSecurityComplianceAgent(ConsentPort):
     def __init__(self, consent_to_give: bool = True):
         self.consent_to_give = consent_to_give
 

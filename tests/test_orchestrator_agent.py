@@ -26,7 +26,7 @@ class MockDoctor(DoctorPort):
     def diagnose(self, error: Error, command: Command) -> list[Remediation]:
         return []
 
-class MockConsentService(ConsentPort):
+class MockSecurityComplianceAgent(ConsentPort):
     def __init__(self, consent_to_give: bool = True):
         self.consent_to_give = consent_to_give
 
@@ -138,7 +138,7 @@ def setup(nmap_tool, whois_tool):
 
     config = Config(allow_system_install=True)
     audit_logger = MockAuditLogger()
-    consent_service = MockConsentService()
+    consent_service = MockSecurityComplianceAgent()
     execution_history = MockExecutionHistory()
     orchestrator = OrchestratorAgent(
         parser=RegexCommandParserAdapter(),
@@ -205,7 +205,7 @@ async def test_error_analyst_is_called_on_failure(nmap_tool):
 
     config = Config(allow_system_install=True)
     audit_logger = MockAuditLogger()
-    consent_service = MockConsentService()
+    consent_service = MockSecurityComplianceAgent()
     execution_history = MockExecutionHistory()
     tool_installer = MockToolInstallerAgent()
 

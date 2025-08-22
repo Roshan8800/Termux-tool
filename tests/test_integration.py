@@ -7,7 +7,7 @@ import json
 from glob import glob
 from termux_cyber_framework.adapters.cli.main import build_agent_system
 from termux_cyber_framework.core.domain.config import Config
-from .mocks import MockCommandRunner, MockConsentService, MockExecutionHistory, MockAIInterpreter
+from .mocks import MockCommandRunner, MockSecurityComplianceAgent, MockExecutionHistory, MockAIInterpreter
 from termux_cyber_framework.core.domain.models import ExecutionResult
 
 @pytest.fixture
@@ -49,7 +49,7 @@ async def test_end_to_end_whois_command_with_mock_ai(cleanup_files):
         "whois google.com": {"returncode": 0, "stdout": "Registrant Organization: Google LLC"}
     })
     config = Config(allow_system_install=True)
-    consent_service = MockConsentService(consent_to_give=True)
+    consent_service = MockSecurityComplianceAgent(consent_to_give=True)
     execution_history = MockExecutionHistory()
     orchestrator = build_agent_system(
         command_runner=mock_runner,
@@ -115,7 +115,7 @@ async def test_end_to_end_with_real_ai(cleanup_files):
         "nmap -sV example.com": {"returncode": 0, "stdout": "Nmap scan report for example.com"}
     })
     config = Config(allow_system_install=True)
-    consent_service = MockConsentService(consent_to_give=True)
+    consent_service = MockSecurityComplianceAgent(consent_to_give=True)
     execution_history = MockExecutionHistory()
     orchestrator = build_agent_system(
         command_runner=mock_runner,
@@ -145,7 +145,7 @@ async def test_end_to_end_git_install_command(cleanup_files, cleanup_cloned_tool
         "python3 tools/sqlmap/sqlmap.py --version --batch --threads 1": {"returncode": 0, "stdout": "1.8.3"}
     })
     config = Config(allow_system_install=True)
-    consent_service = MockConsentService(consent_to_give=True)
+    consent_service = MockSecurityComplianceAgent(consent_to_give=True)
     execution_history = MockExecutionHistory()
     orchestrator = build_agent_system(
         command_runner=mock_runner,
@@ -201,7 +201,7 @@ async def test_system_install_disallowed(cleanup_files, monkeypatch):
 
     mock_runner = MockCommandRunner()
     config = Config(allow_system_install=False)
-    consent_service = MockConsentService(consent_to_give=True)
+    consent_service = MockSecurityComplianceAgent(consent_to_give=True)
     execution_history = MockExecutionHistory()
     orchestrator = build_agent_system(
         command_runner=mock_runner,
@@ -241,7 +241,7 @@ async def test_install_logging(cleanup_files, monkeypatch):
             "whois google.com": {"returncode": 0, "stdout": "Registrant Organization: Google LLC"}
     })
     config = Config(allow_system_install=True)
-    consent_service = MockConsentService(consent_to_give=True)
+    consent_service = MockSecurityComplianceAgent(consent_to_give=True)
     execution_history = MockExecutionHistory()
     orchestrator = build_agent_system(
         command_runner=mock_runner,
@@ -272,7 +272,7 @@ async def test_dry_run_flag(cleanup_files):
     # Arrange
     mock_runner = MockCommandRunner()
     config = Config(dry_run=True)
-    consent_service = MockConsentService(consent_to_give=True)
+    consent_service = MockSecurityComplianceAgent(consent_to_give=True)
     execution_history = MockExecutionHistory()
     orchestrator = build_agent_system(
         command_runner=mock_runner,
@@ -302,7 +302,7 @@ async def test_end_to_end_ping_command(cleanup_files):
         "ping -c 4 google.com": {"returncode": 0, "stdout": "64 bytes from ..."}
     })
     config = Config(allow_system_install=True)
-    consent_service = MockConsentService(consent_to_give=True)
+    consent_service = MockSecurityComplianceAgent(consent_to_give=True)
     execution_history = MockExecutionHistory()
     orchestrator = build_agent_system(
         command_runner=mock_runner,

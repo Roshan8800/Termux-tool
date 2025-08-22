@@ -6,9 +6,10 @@ from termux_cyber_framework.core.use_cases.ports import ConsentPort
 from rich.console import Console
 from rich.panel import Panel
 
-class ConsentService(ConsentPort):
+class SecurityComplianceAgent(ConsentPort):
     """
-    A ConsentPort implementation that prompts the user for consent, especially for dangerous commands.
+    An agent responsible for ensuring user consent and security compliance.
+    It checks for dangerous commands and obtains explicit user approval.
     """
     DANGEROUS_TOOLS = ["sqlmap", "nmap"]  # Example of tools that require explicit consent
 

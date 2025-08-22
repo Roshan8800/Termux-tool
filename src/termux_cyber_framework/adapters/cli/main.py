@@ -5,7 +5,7 @@ from typing import Optional
 from termux_cyber_framework.core.use_cases.orchestrator_agent import OrchestratorAgent
 from termux_cyber_framework.core.command_runner import CommandRunner
 from termux_cyber_framework.core.domain.config import Config
-from termux_cyber_framework.core.use_cases.consent.consent_service import ConsentService
+from termux_cyber_framework.agents.security_compliance_agent import SecurityComplianceAgent
 from termux_cyber_framework.adapters.command_parser.ai_interpreter import AIInterpreter
 from termux_cyber_framework.core.plugin_manager import PluginManager
 from termux_cyber_framework.adapters.report_generator.txt_reporter import TxtReporter
@@ -31,7 +31,7 @@ from termux_cyber_framework.core.use_cases.ports import CommandParserPort
 def build_agent_system(
     command_runner: Optional[CommandRunner] = None,
     config: Optional[Config] = None,
-    consent_service: Optional[ConsentService] = None,
+    consent_service: Optional[SecurityComplianceAgent] = None,
     execution_history: Optional[ExecutionHistory] = None,
     parser: Optional[CommandParserPort] = None
 ) -> OrchestratorAgent:
@@ -42,7 +42,7 @@ def build_agent_system(
 
     config = config or Config()
     command_runner = command_runner or CommandRunner()
-    consent_service = consent_service or ConsentService()
+    consent_service = consent_service or SecurityComplianceAgent()
     execution_history = execution_history or ExecutionHistory()
     logger = LoggerAgent()
 
