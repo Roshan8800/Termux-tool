@@ -52,6 +52,22 @@ pip install -r requirements.txt
 **Note for Linux Users (Kali, Parrot):**
 On desktop Linux systems, some tool installations performed by the framework may require root privileges. The framework will automatically use `sudo` for these commands if it is available. You may be prompted for your password during tool installation.
 
+### Installation Troubleshooting
+
+Some of the Python packages this tool depends on (like `pydantic` and `grpcio`) may need to be compiled from source code during installation on certain platforms, especially on Termux. If the `pip install` command fails or hangs for a long time, you likely need to install the necessary build tools on your system.
+
+**On Termux, run this command first:**
+```bash
+pkg install build-essential python-dev rust -y
+```
+
+**On Debian-based systems (Kali, Parrot), run this command first:**
+```bash
+sudo apt-get update && sudo apt-get install build-essential python3-dev rustc -y
+```
+
+After installing these build dependencies, please try running `pip install -r requirements.txt` again.
+
 ---
 
 ## How to Use
