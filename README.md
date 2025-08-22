@@ -23,50 +23,29 @@ This framework allows users to run a variety of cybersecurity tools using natura
 
 ## Installation
 
-Getting the framework up and running is simple.
+Getting the framework up and running is simple, thanks to the automated setup script.
 
 ### Prerequisites
 
-- **Python 3.11+**
 - **Git**
-- An active internet connection for downloading tools and accessing the AI API.
+- An active internet connection.
 - A supported operating system (Termux, Kali Linux, Parrot OS).
 
-### Step 1: Clone the Repository
+### Automated Installation
 
-First, clone the repository to your local machine using Git.
+1.  **Clone the Repository**
+    ```bash
+    git clone https://github.com/your-repo/termux-cyber-framework.git
+    cd termux-cyber-framework
+    ```
 
-```bash
-git clone https://github.com/your-repo/termux-cyber-framework.git
-cd termux-cyber-framework
-```
+2.  **Run the Setup Script**
+    This script will automatically detect your OS, install necessary system packages, and then install all the required Python libraries.
+    ```bash
+    bash install.sh
+    ```
 
-### Step 2: Install Dependencies
-
-Install the required Python libraries using `pip`.
-
-```bash
-pip install -r requirements.txt
-```
-
-**Note for Linux Users (Kali, Parrot):**
-On desktop Linux systems, some tool installations performed by the framework may require root privileges. The framework will automatically use `sudo` for these commands if it is available. You may be prompted for your password during tool installation.
-
-### Installation Troubleshooting
-
-Some of the Python packages this tool depends on (like `pydantic` and `grpcio`) may need to be compiled from source code during installation on certain platforms, especially on Termux. If the `pip install` command fails or hangs for a long time, you likely need to install the necessary build tools on your system.
-
-**On Termux, run this command first:**
-```bash
-pkg install build-essential python rust -y
-```
-
-**On Debian-based systems (Kali, Parrot), run this command first:**
-```bash
-sudo apt-get update && sudo apt-get install build-essential python3-dev rustc -y
-```
-
-After installing these build dependencies, please try running `pip install -r requirements.txt` again.
+That's it! The script will handle everything for you. On systems like Kali or Parrot, it may ask for your `sudo` password to install system packages.
 
 ---
 

@@ -15,8 +15,12 @@ from termux_cyber_framework.adapters.audit_logger.file_audit_logger import FileA
 from termux_cyber_framework.adapters.logger.file_logger import FileLoggerAdapter
 from termux_cyber_framework.adapters.error_fixer.simple_ai_fixer import SimpleAiFixerAdapter
 from termux_cyber_framework.adapters.doctor.regex_doctor import RegexDoctorAdapter
+from rich.console import Console
+from rich.panel import Panel
 
-app = typer.Typer()
+console = Console()
+
+app = typer.Typer(add_completion=False)
 
 from termux_cyber_framework.core.use_cases.ports import CommandParserPort
 
@@ -73,6 +77,33 @@ def build_use_case(
         execution_history=execution_history
     )
 
+def display_welcome():
+    """Displays the welcome message, logo, and disclaimer."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+    logo = r"""
+[bold blue]
+  _____           _
+ |  __ \         | |
+ | |__) |___  ___| |_ _ __ ___  _ __
+ |  _  // _ \/ __| __| '__/ _ \| '_ \
+ | | \ \  __/\__ \ |_| | | (_) | | | |
+ |_|  \_\___||___/\__|_|  \___/|_| |_|
+[/bold blue]
+    """
+
+    console.print(logo)
+    console.print("[bold]Welcome to the Termux Cyber Framework[/bold]")
+    console.print("Created by [bold green]Roshan[/bold green]\n")
+
+    disclaimer = """
+    This tool is for educational purposes only. Do not use it to cause harm.
+    I am not responsible for any misuse; responsibility rests with the user.
+    """
+
+    console.print(Panel(disclaimer, title="[bold yellow]Disclaimer[/bold yellow]", border_style="yellow"))
+    console.print("")
+
 @app.command()
 def run(
     command: str = typer.Argument(..., help="The command to run in natural language."),
@@ -91,4 +122,5 @@ def run(
     asyncio.run(main())
 
 if __name__ == "__main__":
+    display_welcome()
     app()
