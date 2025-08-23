@@ -134,6 +134,47 @@ def run(
 
     asyncio.run(main())
 
+
+@app.command()
+def shell():
+    """
+    Starts an interactive shell session to run multiple commands.
+    """
+    console.print("[bold green]Starting interactive shell...[/bold green]")
+    console.print("Type ':help' for a list of commands, or ':exit' to quit.")
+
+    # Build the orchestrator once for the session
+    orchestrator = build_agent_system()
+
+    while True:
+        try:
+            command_str = console.input("[bold cyan]cyber-ai>[/bold cyan] ")
+
+            if not command_str.strip():
+                continue
+
+            if command_str.lower() == ':exit':
+                console.print("[bold yellow]Exiting shell.[/bold yellow]")
+                break
+
+            if command_str.lower() == ':help':
+                console.print("\n[bold]Available Meta-Commands:[/bold]")
+                console.print("  :help   - Show this help message")
+                console.print("  :exit   - Exit the interactive shell\n")
+                continue
+
+            # If it's not a meta-command, execute it
+            async def main():
+                await orchestrator.execute(command_str)
+
+            asyncio.run(main())
+
+        except KeyboardInterrupt:
+            console.print("\n[bold yellow]Use ':exit' to quit.[/bold yellow]")
+        except Exception as e:
+            console.print(f"[bold red]An unexpected error occurred: {e}[/bold red]")
+
+
 if __name__ == "__main__":
     display_welcome()
     app()

@@ -53,9 +53,21 @@ That's it! The script will handle everything for you. On systems like Kali or Pa
 
 The framework is designed to be intuitive. You interact with it using the `run` command followed by your command in plain English.
 
-### Basic Usage
+### Interactive Shell Mode
 
-To run a command, use the following structure:
+For an interactive experience, you can launch the framework's shell:
+```bash
+python -m src.termux_cyber_framework.main shell
+```
+This will drop you into the `cyber-ai>` prompt, where you can enter natural language commands directly.
+
+**Meta-Commands:**
+- `:help` - Shows available commands.
+- `:exit` - Exits the shell.
+
+### Direct Command Execution
+
+To run a single command without entering the shell, use the `run` command:
 ```bash
 python -m src.termux_cyber_framework.main run "your natural language command"
 ```
