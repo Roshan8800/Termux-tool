@@ -4,19 +4,18 @@ from datetime import datetime
 from termux_cyber_framework.core.domain.models import ExecutionResult
 from termux_cyber_framework.core.use_cases.ports import ReportGeneratorPort
 from termux_cyber_framework.core.domain.run_paths import RunPaths
+from termux_cyber_framework.agents.file_manager_agent import FileManagerAgent
 from rich.console import Console
-from rich.panel import Panel
-from rich.text import Text
 
 class JsonReporter(ReportGeneratorPort):
     """
     A report generator that saves the report to a JSON file on the filesystem.
     """
-    def __init__(self, reports_dir="reports"):
+    def __init__(self, file_manager: FileManagerAgent, reports_dir="reports"):
+        self.file_manager = file_manager
         self.reports_dir = reports_dir
         self.console = Console()
-        if not os.path.exists(self.reports_dir):
-            os.makedirs(self.reports_dir)
+        self.file_manager.create_directory(self.reports_dir)
 
     def prepare_report_paths(self, tool_name: str) -> RunPaths:
         now = datetime.now()
@@ -25,7 +24,7 @@ class JsonReporter(ReportGeneratorPort):
 
         tool_name = tool_name.replace(" ", "_").replace("/", "")
         run_dir = os.path.join(self.reports_dir, date_str, tool_name)
-        os.makedirs(run_dir, exist_ok=True)
+        self.file_manager.create_directory(run_dir)
 
         base_filename = f"{time_str}"
         log_path = os.path.join(run_dir, f"{base_filename}.log")
@@ -33,7 +32,7 @@ class JsonReporter(ReportGeneratorPort):
 
     def generate(self, result: ExecutionResult, paths: RunPaths) -> None:
         """
-        Saves the report to a JSON file and the output to a log file.
+        Saves the report to a JSON file.
         """
         summary_file = os.path.join(paths.run_dir, f"{paths.base_filename}.json")
         report = {
@@ -52,18 +51,10 @@ class JsonReporter(ReportGeneratorPort):
             "output": result.output,
         }
 
-        try:
-            with open(summary_file, 'w') as f:
-                json.dump(report, f, indent=4)
+        report_content = json.dumps(report, indent=4)
+        if not self.file_manager.write_file(summary_file, report_content):
+            self.console.print(f"[bold red]Error saving JSON report to file: {summary_file}[/bold red]")
 
-            if paths.output_log_file:
-                with open(paths.output_log_file, 'w') as f:
-                    f.write(result.output)
-
-        except Exception as e:
-            self.console.print(f"[bold red]Error saving report to file: {e}[/bold red]")
-
-        # The JSON reporter doesn't print a summary to the console,
-        # as the TxtReporter already does that. We could add it if desired,
-        # but it might be redundant.
+        # The TxtReporter is responsible for writing the raw output log
+        # and printing to console, so this agent only handles the JSON file.
         pass

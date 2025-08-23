@@ -1,17 +1,19 @@
-import os
 import json
+import os
 import shutil
 from termux_cyber_framework.core.use_cases.ports import LoggerPort, LogLevel
 from .config_manager_agent import ConfigManagerAgent
+from .file_manager_agent import FileManagerAgent
 
 class DoctorAgent:
     """
     An agent responsible for running health checks on the system and attempting
     to self-heal from common configuration issues.
     """
-    def __init__(self, logger: LoggerPort, config_manager: ConfigManagerAgent, config_paths: list[str], tool_catalog_path: str):
+    def __init__(self, logger: LoggerPort, config_manager: ConfigManagerAgent, file_manager: FileManagerAgent, config_paths: list[str], tool_catalog_path: str):
         self.logger = logger
         self.config_manager = config_manager
+        self.file_manager = file_manager
         self.config_paths = config_paths
         self.tool_catalog_path = tool_catalog_path
 
@@ -26,10 +28,7 @@ class DoctorAgent:
             self._check_config_integrity()
             self._check_api_key()
             self._check_tool_availability()
-
-            # If all checks passed, we can create backups of the good configs.
             self.backup_configs()
-
         except (FileNotFoundError, ValueError) as e:
             self.logger.log(f"A critical health check failed and could not be resolved: {e}", level=LogLevel.ERROR)
             raise
@@ -38,11 +37,11 @@ class DoctorAgent:
 
     def _is_config_valid(self, path: str) -> bool:
         """Helper to check if a single config file exists and is valid JSON."""
-        if not os.path.exists(path):
+        content = self.file_manager.read_file(path)
+        if content is None:
             return False
         try:
-            with open(path, 'r') as f:
-                json.load(f)
+            json.loads(content)
             return True
         except json.JSONDecodeError:
             return False
@@ -51,13 +50,12 @@ class DoctorAgent:
         """Attempts to restore a config file from its backup."""
         backup_path = f"{path}.bak"
         self.logger.log(f"Attempting to restore '{path}' from backup '{backup_path}'...", level=LogLevel.WARNING)
-        if os.path.exists(backup_path):
-            try:
-                shutil.copy(backup_path, path)
+        if self.file_manager.path_exists(backup_path):
+            if self.file_manager.copy_file(backup_path, path):
                 self.logger.log(f"Successfully restored '{path}'.", level=LogLevel.INFO)
                 return True
-            except Exception as e:
-                self.logger.log(f"Failed to restore '{path}' from backup. Error: {e}", level=LogLevel.ERROR)
+            else:
+                self.logger.log(f"Failed to restore '{path}' from backup.", level=LogLevel.ERROR)
                 return False
         else:
             self.logger.log(f"Backup file '{backup_path}' not found. Cannot restore.", level=LogLevel.ERROR)
@@ -73,7 +71,6 @@ class DoctorAgent:
             if not self._is_config_valid(path):
                 self.logger.log(f"Configuration file '{path}' is missing or corrupt.", level=LogLevel.WARNING)
                 if not self._restore_config(path) or not self._is_config_valid(path):
-                    # If restore fails or the restored file is also invalid, raise an error.
                     raise ValueError(f"Critical configuration file '{path}' is corrupt or missing and could not be restored.")
         self.logger.log("Configuration files are valid.", level=LogLevel.DEBUG)
 
@@ -82,10 +79,8 @@ class DoctorAgent:
         self.logger.log("Backing up configuration files...", level=LogLevel.DEBUG)
         for path in self.config_paths:
             backup_path = f"{path}.bak"
-            try:
-                shutil.copy(path, backup_path)
-            except Exception as e:
-                self.logger.log(f"Failed to create backup for '{path}'. Error: {e}", level=LogLevel.WARNING)
+            if not self.file_manager.copy_file(path, backup_path):
+                self.logger.log(f"Failed to create backup for '{path}'.", level=LogLevel.WARNING)
 
     def _check_api_key(self):
         """Checks if a Google API key is configured via file or environment variable."""
@@ -101,11 +96,15 @@ class DoctorAgent:
     def _check_tool_availability(self):
         """Checks if tools listed in the catalog are available on the system PATH."""
         self.logger.log("Checking for tool availability...", level=LogLevel.DEBUG)
+        content = self.file_manager.read_file(self.tool_catalog_path)
+        if content is None:
+            self.logger.log(f"Could not read tool catalog at '{self.tool_catalog_path}'. Skipping tool availability check.", level=LogLevel.WARNING)
+            return
+
         try:
-            with open(self.tool_catalog_path, 'r') as f:
-                tools = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError) as e:
-            self.logger.log(f"Could not read tool catalog at '{self.tool_catalog_path}'. Skipping tool availability check. Error: {e}", level=LogLevel.WARNING)
+            tools = json.loads(content)
+        except json.JSONDecodeError as e:
+            self.logger.log(f"Could not parse tool catalog. Skipping tool availability check. Error: {e}", level=LogLevel.WARNING)
             return
 
         missing_tools = []
