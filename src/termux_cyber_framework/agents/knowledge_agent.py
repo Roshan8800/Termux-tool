@@ -9,11 +9,12 @@ class KnowledgeAgent:
     An agent that uses a generative AI model to answer user questions about
     cybersecurity tools and concepts, with caching for repeated queries.
     """
-    def __init__(self, api_key: str, file_manager: FileManagerAgent, logger: LoggerPort, tool_catalog_path: str, cache_path: str = "reports/knowledge_cache.json"):
-        if not api_key:
-            raise ValueError("API key for KnowledgeAgent cannot be None or empty.")
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+    def __init__(self, api_key: Optional[str], file_manager: FileManagerAgent, logger: LoggerPort, tool_catalog_path: str, cache_path: str = "reports/knowledge_cache.json"):
+        self.model = None
+        if api_key:
+            genai.configure(api_key=api_key)
+            self.model = genai.GenerativeModel('gemini-1.5-flash')
+
         self.file_manager = file_manager
         self.logger = logger
         self.tool_catalog_path = tool_catalog_path
@@ -58,6 +59,9 @@ class KnowledgeAgent:
         """
         Queries the generative model or local cache with a user's question.
         """
+        if not self.model:
+            return "Knowledge Agent is disabled because no API key was provided."
+
         cache_key = question.strip().lower()
         if cache_key in self.query_cache:
             self.logger.log(f"Returning cached response for question: '{question}'", level=LogLevel.INFO)
@@ -83,7 +87,6 @@ class KnowledgeAgent:
         try:
             response = await self.model.generate_content_async(prompt)
             answer = response.text
-            # Cache the new response
             self.query_cache[cache_key] = answer
             self._save_cache()
             return answer

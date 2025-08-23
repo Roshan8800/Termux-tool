@@ -1,4 +1,5 @@
 import google.generativeai as genai
+from typing import Optional
 from termux_cyber_framework.core.domain.models import ExecutionResult
 
 class SecurityAdvisorAgent:
@@ -6,20 +7,19 @@ class SecurityAdvisorAgent:
     An agent that uses an AI model to provide security advice and suggest
     next steps based on the results of a command execution.
     """
-    def __init__(self, api_key: str):
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-1.5-flash-latest')
+    def __init__(self, api_key: Optional[str]):
+        self.model = None
+        if api_key:
+            genai.configure(api_key=api_key)
+            self.model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
     async def provide_advice(self, result: ExecutionResult) -> str:
         """
         Analyzes a successful execution result and provides advice.
-
-        Args:
-            result: The successful execution result.
-
-        Returns:
-            A string containing security advice and suggested next steps.
         """
+        if not self.model:
+            return "AI security advisor is disabled because no API key was provided."
+
         if not result.success or not result.output:
             return "No advice to give on a failed or empty result."
 
