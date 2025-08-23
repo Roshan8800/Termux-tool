@@ -24,6 +24,16 @@ from tests.mocks import MockAuditLogger, MockExecutionHistory, MockToolInstaller
 
 # --- Mock Adapters for Testing ---
 
+class MockUpdateAgent:
+    def check_framework_update(self) -> bool:
+        return False
+    def check_tool_updates(self) -> dict:
+        return {"pkg": [], "pip": []}
+    def apply_framework_update(self) -> bool:
+        return True
+    def apply_tool_updates(self, pip_packages: list) -> bool:
+        return True
+
 class MockNetworkAgent(NetworkPort):
     def __init__(self, is_online: bool = True):
         self.is_online = is_online
@@ -147,6 +157,7 @@ def setup(nmap_tool, whois_tool):
     error_fixer = MockErrorFixerAgent()
     logger = MockLogger()
     network_agent = MockNetworkAgent()
+    update_agent = MockUpdateAgent()
 
     config = Config(allow_system_install=True)
     audit_logger = MockAuditLogger()
@@ -165,7 +176,8 @@ def setup(nmap_tool, whois_tool):
         audit_logger=audit_logger,
         consent_service=consent_service,
         execution_history=execution_history,
-        network_agent=network_agent
+        network_agent=network_agent,
+        update_agent=update_agent
     )
     return orchestrator, tool_adapters, report_generators, error_analyst, error_fixer, tool_installer, security_advisor, nmap_runner, whois_runner
 
@@ -184,9 +196,6 @@ async def test_uses_specific_runner_when_available(setup):
 async def test_installs_tool_if_not_installed(setup):
     orchestrator, _, _, _, _, tool_installer, _, _, _ = setup
 
-    # We don't need to mock the adapter anymore, just the installer logic
-    # In a real scenario, the ToolInstallerAgent would handle this.
-    # Here, we just check if it was called.
     await orchestrator.execute("whois google.com")
     assert tool_installer.install_if_needed_called is True
     assert tool_installer.install_if_needed_tool.name == "whois"
@@ -195,7 +204,6 @@ async def test_installs_tool_if_not_installed(setup):
 async def test_install_tool_fails(setup):
     orchestrator, _, _, _, _, tool_installer, _, _, _ = setup
 
-    # To simulate an installation failure, we can mock the installer agent
     def fake_install_fail(tool):
         raise RuntimeError(f"Failed to install tool '{tool.name}'.")
     tool_installer.install_if_needed = fake_install_fail
@@ -218,11 +226,10 @@ async def test_error_analyst_is_called_when_no_fix_is_found(nmap_tool):
     report_generators = [MockReportGenerator()]
     error_analyst = MockErrorAnalystAgent()
 
-    # Spy on the analyze_error method
     error_analyst.analyze_error = AsyncMock(wraps=error_analyst.analyze_error)
 
     error_fixer = MockErrorFixerAgent()
-    error_fixer.suggest_fix = AsyncMock(return_value=None) # No fix found
+    error_fixer.suggest_fix = AsyncMock(return_value=None)
 
     config = Config(allow_system_install=True)
     audit_logger = MockAuditLogger()
@@ -231,6 +238,7 @@ async def test_error_analyst_is_called_when_no_fix_is_found(nmap_tool):
     tool_installer = MockToolInstallerAgent()
     security_advisor = MockSecurityAdvisorAgent()
     network_agent = MockNetworkAgent()
+    update_agent = MockUpdateAgent()
 
     orchestrator = OrchestratorAgent(
         parser=RegexCommandParserAdapter(),
@@ -245,7 +253,8 @@ async def test_error_analyst_is_called_when_no_fix_is_found(nmap_tool):
         audit_logger=audit_logger,
         consent_service=consent_service,
         execution_history=execution_history,
-        network_agent=network_agent
+        network_agent=network_agent,
+        update_agent=update_agent
     )
 
     # Act
@@ -276,18 +285,17 @@ async def test_orchestrator_attempts_auto_fix_on_failure(nmap_tool):
     error_analyst = MockErrorAnalystAgent()
     error_fixer = MockErrorFixerAgent()
 
-    # Mock the fixer to return a new command
     fixed_command = Command(tool_name="sudo", args=["nmap", "-p", "80", "localhost"], raw_command="nmap -p 80 localhost")
     error_fixer.suggest_fix = AsyncMock(return_value=fixed_command)
 
     config = Config(allow_system_install=True)
     audit_logger = MockAuditLogger()
-    # Mock consent to approve the fix
     consent_service = MockSecurityComplianceAgent(consent_to_give=True)
     execution_history = MockExecutionHistory()
     tool_installer = MockToolInstallerAgent()
     security_advisor = MockSecurityAdvisorAgent()
     network_agent = MockNetworkAgent()
+    update_agent = MockUpdateAgent()
 
     orchestrator = OrchestratorAgent(
         parser=RegexCommandParserAdapter(),
@@ -302,7 +310,8 @@ async def test_orchestrator_attempts_auto_fix_on_failure(nmap_tool):
         audit_logger=audit_logger,
         consent_service=consent_service,
         execution_history=execution_history,
-        network_agent=network_agent
+        network_agent=network_agent,
+        update_agent=update_agent
     )
 
     # Act
@@ -311,6 +320,6 @@ async def test_orchestrator_attempts_auto_fix_on_failure(nmap_tool):
     # Assert
     assert result.success is True
     assert "Executed by SudoRunner" in result.output
-    assert nmap_runner.call_count == 1  # First attempt
-    assert sudo_runner.call_count == 1  # Second, fixed attempt
+    assert nmap_runner.call_count == 1
+    assert sudo_runner.call_count == 1
     error_fixer.suggest_fix.assert_called_once()

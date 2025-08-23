@@ -23,6 +23,7 @@ from termux_cyber_framework.agents.tool_installer_agent import ToolInstallerAgen
 from termux_cyber_framework.agents.security_advisor_agent import SecurityAdvisorAgent
 from termux_cyber_framework.agents.error_fixer_agent import ErrorFixerAgent
 from termux_cyber_framework.agents.network_agent import NetworkAgent
+from termux_cyber_framework.agents.update_agent import UpdateAgent
 
 
 class OrchestratorAgent:
@@ -40,6 +41,7 @@ class OrchestratorAgent:
         tool_installer: ToolInstallerAgent,
         security_advisor: SecurityAdvisorAgent,
         network_agent: NetworkAgent,
+        update_agent: UpdateAgent,
         logger: LoggerPort,
         config: Config,
         audit_logger: AuditLoggerPort,
@@ -59,6 +61,47 @@ class OrchestratorAgent:
         self.audit_logger = audit_logger
         self.consent_service = consent_service
         self.execution_history = execution_history
+        self.update_agent = update_agent
+
+    async def update_system(self):
+        """Checks for and applies updates to the framework and its tools."""
+        self.logger.log("Starting system update process...", level=LogLevel.INFO)
+
+        framework_update_available = self.update_agent.check_framework_update()
+        tool_updates = self.update_agent.check_tool_updates()
+        pip_updates_available = bool(tool_updates.get("pip"))
+        pkg_updates_available = bool(tool_updates.get("pkg"))
+
+        if not framework_update_available and not pip_updates_available and not pkg_updates_available:
+            self.logger.log("System is already up to date.", level=LogLevel.INFO)
+            return "System is already up to date."
+
+        # Build a summary for the user
+        summary = "Updates are available for the following components:\n"
+        if framework_update_available:
+            summary += "- The main framework\n"
+        if pkg_updates_available:
+            summary += "- System packages (via pkg)\n"
+        if pip_updates_available:
+            summary += f"- Pip packages: {', '.join(tool_updates['pip'])}\n"
+
+        summary += "\nDo you want to apply these updates?"
+
+        # Use a special command for the consent check
+        update_command = Command(tool_name="system-update", args=[], raw_command="update", is_dangerous=True)
+
+        if self.consent_service.get_consent(update_command):
+            self.logger.log("User consented to updates. Applying now...", level=LogLevel.INFO)
+            if framework_update_available:
+                self.update_agent.apply_framework_update()
+
+            if pkg_updates_available or pip_updates_available:
+                self.update_agent.apply_tool_updates(pip_packages=tool_updates.get("pip", []))
+
+            return "System update process finished. Please review the logs for details. A restart is recommended if the framework was updated."
+        else:
+            self.logger.log("User did not consent to updates. Aborting.", level=LogLevel.WARNING)
+            return "Update process aborted by user."
 
     async def _run_command_flow(self, command: Command) -> ExecutionResult:
         """Helper to run a single command and return its report."""

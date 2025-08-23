@@ -22,6 +22,7 @@ from termux_cyber_framework.agents.security_advisor_agent import SecurityAdvisor
 from termux_cyber_framework.agents.network_agent import NetworkAgent
 from termux_cyber_framework.agents.doctor_agent import DoctorAgent
 from termux_cyber_framework.agents.config_manager_agent import ConfigManagerAgent
+from termux_cyber_framework.agents.update_agent import UpdateAgent
 from termux_cyber_framework.adapters.tool_installer.git_installer import GitInstallerAdapter
 from termux_cyber_framework.adapters.tool_installer.pip_installer import PipInstallerAdapter
 from termux_cyber_framework.adapters.tool_installer.pkg_installer import PkgInstallerAdapter
@@ -86,6 +87,7 @@ def build_agent_system(
     security_advisor = SecurityAdvisorAgent(api_key=api_key)
     network_agent = NetworkAgent(logger=logger)
     tool_installer = ToolInstallerAgent(installers=installers, logger=logger, config=config)
+    update_agent = UpdateAgent(logger=logger, audit_logger=audit_logger)
 
     return OrchestratorAgent(
         parser=command_parser,
@@ -96,6 +98,7 @@ def build_agent_system(
         tool_installer=tool_installer,
         security_advisor=security_advisor,
         network_agent=network_agent,
+        update_agent=update_agent,
         logger=logger,
         config=config,
         audit_logger=audit_logger,
@@ -181,6 +184,20 @@ def set_key(
     agent.set_api_key(service, key)
 
     console.print(f"[bold green]API key for '{service}' has been set successfully.[/bold green]")
+
+
+@app.command()
+def update():
+    """
+    Checks for and applies updates to the framework and its tools.
+    """
+    orchestrator = build_agent_system()
+
+    async def main():
+        result_message = await orchestrator.update_system()
+        console.print(f"[bold yellow]{result_message}[/bold yellow]")
+
+    asyncio.run(main())
 
 
 @app.command()
