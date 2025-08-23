@@ -1,0 +1,56 @@
+[
+    {
+        "name": "nmap",
+        "description": "A network scanner for discovering hosts and services.",
+        "install_info": {
+            "method": "pkg",
+            "source": "nmap"
+        },
+        "run_command": "nmap",
+        "adapter_class": "termux_cyber_framework.adapters.plugins.nmap_adapter.NmapAdapter"
+    },
+    {
+        "name": "sqlmap",
+        "description": "An open source penetration testing tool that automates the process of detecting and exploiting SQL injection flaws.",
+        "install_info": {
+            "method": "git",
+            "source": "https://github.com/sqlmapproject/sqlmap.git",
+            "path": "tools/sqlmap",
+            "health_check": "python3 tools/sqlmap/sqlmap.py --version"
+        },
+        "run_command": "python3 tools/sqlmap/sqlmap.py",
+        "adapter_class": "termux_cyber_framework.adapters.plugins.sqlmap_adapter.SqlmapAdapter"
+    },
+    {
+        "name": "whois",
+        "description": "A query and response protocol that is widely used for querying databases that store the registered users or assignees of an Internet resource.",
+        "install_info": {
+            "method": "pkg",
+            "source": "whois"
+        },
+        "run_command": "whois",
+        "adapter_class": null
+    },
+    {
+        "name": "requests",
+        "description": "A simple, yet elegant HTTP library.",
+        "install_info": {
+            "method": "pip",
+            "source": "requests",
+            "python_module": "requests",
+            "bin_name": null
+        },
+        "run_command": null,
+        "adapter_class": null
+    },
+    {
+        "name": "ping",
+        "description": "A utility to test the reachability of a host on an Internet Protocol network.",
+        "install_info": {
+            "method": "pkg",
+            "source": "inetutils"
+        },
+        "run_command": "ping",
+        "adapter_class": null
+    }
+]

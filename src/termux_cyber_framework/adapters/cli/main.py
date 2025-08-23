@@ -21,6 +21,7 @@ from termux_cyber_framework.agents.tool_installer_agent import ToolInstallerAgen
 from termux_cyber_framework.agents.security_advisor_agent import SecurityAdvisorAgent
 from termux_cyber_framework.agents.network_agent import NetworkAgent
 from termux_cyber_framework.agents.doctor_agent import DoctorAgent
+from termux_cyber_framework.agents.config_manager_agent import ConfigManagerAgent
 from termux_cyber_framework.adapters.tool_installer.git_installer import GitInstallerAdapter
 from termux_cyber_framework.adapters.tool_installer.pip_installer import PipInstallerAdapter
 from termux_cyber_framework.adapters.tool_installer.pkg_installer import PkgInstallerAdapter
@@ -74,8 +75,12 @@ def build_agent_system(
     audit_logger = FileAuditLogger()
 
     # --- Agent Construction ---
-    # TODO: The API key should not be hardcoded.
-    api_key = os.getenv("GOOGLE_API_KEY")
+    config_path = os.path.join(project_root, "config", "config.json")
+    config_manager = ConfigManagerAgent(config_path=config_path)
+
+    # Get the API key, prioritizing the config file over the environment variable
+    api_key = config_manager.get_api_key("google_gemini") or os.getenv("GOOGLE_API_KEY")
+
     error_analyst = ErrorAnalystAgent(api_key=api_key)
     error_fixer = ErrorFixerAgent(api_key=api_key)
     security_advisor = SecurityAdvisorAgent(api_key=api_key)
@@ -137,8 +142,15 @@ def run_health_checks():
             os.path.join(project_root, "data", "tool_catalog.json")
         ]
         tool_catalog_path = os.path.join(project_root, "data", "tool_catalog.json")
+        config_path = os.path.join(project_root, "config", "config.json")
 
-        doctor = DoctorAgent(logger=logger, config_paths=config_paths, tool_catalog_path=tool_catalog_path)
+        config_manager = ConfigManagerAgent(config_path=config_path)
+        doctor = DoctorAgent(
+            logger=logger,
+            config_manager=config_manager,
+            config_paths=config_paths,
+            tool_catalog_path=tool_catalog_path
+        )
         doctor.run_checks()
     except (FileNotFoundError, ValueError) as e:
         error_panel = Panel(
@@ -149,6 +161,27 @@ def run_health_checks():
         )
         console.print(error_panel)
         raise typer.Exit(code=1)
+
+
+@app.command()
+def set_key(
+    service: str = typer.Argument(..., help="The name of the service (e.g., 'google_gemini', 'open_router')."),
+    key: str = typer.Argument(..., help="The API key value.")
+):
+    """
+    Sets and saves an API key for a given service in the config file.
+    """
+    from termux_cyber_framework.agents.config_manager_agent import ConfigManagerAgent
+
+    # We need to find the project root to locate the config file correctly.
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
+    config_path = os.path.join(project_root, "config", "config.json")
+
+    agent = ConfigManagerAgent(config_path=config_path)
+    agent.set_api_key(service, key)
+
+    console.print(f"[bold green]API key for '{service}' has been set successfully.[/bold green]")
+
 
 @app.command()
 def run(

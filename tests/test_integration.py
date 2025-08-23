@@ -106,7 +106,7 @@ async def test_end_to_end_whois_command_with_mock_ai(cleanup_files):
     assert execution_history.history[0].command.tool_name == "whois"
 
 
-@pytest.mark.skip(reason="This test makes real API calls and is failing due to credential/quota issues.")
+@pytest.mark.skip(reason="This test makes real API calls and is disabled to avoid credential/quota issues in CI.")
 @pytest.mark.asyncio
 async def test_end_to_end_with_real_ai(cleanup_files):
     """

@@ -2,14 +2,16 @@ import os
 import json
 import shutil
 from termux_cyber_framework.core.use_cases.ports import LoggerPort, LogLevel
+from .config_manager_agent import ConfigManagerAgent
 
 class DoctorAgent:
     """
     An agent responsible for running health checks on the system and attempting
     to self-heal from common configuration issues.
     """
-    def __init__(self, logger: LoggerPort, config_paths: list[str], tool_catalog_path: str):
+    def __init__(self, logger: LoggerPort, config_manager: ConfigManagerAgent, config_paths: list[str], tool_catalog_path: str):
         self.logger = logger
+        self.config_manager = config_manager
         self.config_paths = config_paths
         self.tool_catalog_path = tool_catalog_path
 
@@ -86,12 +88,15 @@ class DoctorAgent:
                 self.logger.log(f"Failed to create backup for '{path}'. Error: {e}", level=LogLevel.WARNING)
 
     def _check_api_key(self):
-        """Checks if the Google API key is set as an environment variable."""
+        """Checks if a Google API key is configured via file or environment variable."""
         self.logger.log("Checking for Google API key...", level=LogLevel.DEBUG)
-        if not os.getenv("GOOGLE_API_KEY"):
-            self.logger.log("GOOGLE_API_KEY environment variable is not set. AI features will be unavailable.", level=LogLevel.WARNING)
+        key_from_config = self.config_manager.get_api_key('google_gemini')
+        key_from_env = os.getenv("GOOGLE_API_KEY")
+
+        if not key_from_config and not key_from_env:
+            self.logger.log("Google API key is not set in config.json or as an environment variable. AI features will be unavailable.", level=LogLevel.WARNING)
         else:
-            self.logger.log("Google API key is set.", level=LogLevel.DEBUG)
+            self.logger.log("Google API key is configured.", level=LogLevel.DEBUG)
 
     def _check_tool_availability(self):
         """Checks if tools listed in the catalog are available on the system PATH."""
@@ -104,8 +109,8 @@ class DoctorAgent:
             return
 
         missing_tools = []
-        for tool_data in tools.get("tools", []):
-            command_to_check = tool_data.get('run_command', '').split(' ')[0]
+        for tool_data in tools:
+            command_to_check = (tool_data.get('run_command') or '').split(' ')[0]
             install_info = tool_data.get('install_info', {})
             if command_to_check and install_info.get('method') != 'git' and not shutil.which(command_to_check):
                  missing_tools.append(tool_data['name'])
