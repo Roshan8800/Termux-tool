@@ -25,10 +25,11 @@ def test_txt_reporter_creates_files(tmp_path, execution_result):
     reporter.generate(execution_result, paths)
 
     # Assert
-    assert os.path.exists(paths.summary_file)
+    summary_file = os.path.join(paths.run_dir, f"{paths.base_filename}.txt")
+    assert os.path.exists(summary_file)
     assert os.path.exists(paths.output_log_file)
 
-    with open(paths.summary_file, 'r') as f:
+    with open(summary_file, 'r') as f:
         summary_content = f.read()
     assert "Status: Success" in summary_content
 

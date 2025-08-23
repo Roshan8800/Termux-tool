@@ -71,14 +71,15 @@ async def test_end_to_end_whois_command_with_mock_ai(cleanup_files):
     assert "Google LLC" in result.output # Check for expected content in the output
 
     # 2. Assert that a log file was created and contains expected content
-    assert os.path.exists(result.output_log_file)
-    with open(result.output_log_file, 'r') as f:
+    assert result.paths.output_log_file and os.path.exists(result.paths.output_log_file)
+    with open(result.paths.output_log_file, 'r') as f:
         log_content = f.read()
     assert "Registrant Organization: Google LLC" in log_content
 
     # 3. Assert that report files were created and contain expected content
-    txt_summary_path = result.output_log_file.replace(".log", ".txt")
-    json_summary_path = result.output_log_file.replace(".log", ".json")
+    txt_summary_path = os.path.join(result.paths.run_dir, f"{result.paths.base_filename}.txt")
+    json_summary_path = os.path.join(result.paths.run_dir, f"{result.paths.base_filename}.json")
+
     assert os.path.exists(txt_summary_path)
     assert os.path.exists(json_summary_path)
 
@@ -168,9 +169,9 @@ async def test_end_to_end_git_install_command(cleanup_files, cleanup_cloned_tool
     assert re.search(r"\d+\.\d+", result.output)
 
     # 3. Assert log and report files were created
-    assert result.output_log_file and os.path.exists(result.output_log_file)
-    txt_summary_path = result.output_log_file.replace(".log", ".txt")
-    json_summary_path = result.output_log_file.replace(".log", ".json")
+    assert result.paths.output_log_file and os.path.exists(result.paths.output_log_file)
+    txt_summary_path = os.path.join(result.paths.run_dir, f"{result.paths.base_filename}.txt")
+    json_summary_path = os.path.join(result.paths.run_dir, f"{result.paths.base_filename}.json")
     assert os.path.exists(txt_summary_path)
     assert os.path.exists(json_summary_path)
 

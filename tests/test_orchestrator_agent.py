@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import AsyncMock
 from typing import Optional, List, Dict
 from datetime import datetime
+from pathlib import Path
 from termux_cyber_framework.core.domain.models import Command, Tool, ExecutionResult, Error, InstallInfo, Remediation
 from termux_cyber_framework.core.domain.config import Config
 from termux_cyber_framework.core.domain.run_paths import RunPaths
@@ -90,7 +91,8 @@ class MockToolRunner(ToolRunnerPort):
 
 class MockReportGenerator(ReportGeneratorPort):
     def prepare_report_paths(self, tool_name: str) -> RunPaths:
-        return RunPaths(summary_file="summary.json", output_log_file="run.log")
+        # Create a dummy path for the mock
+        return RunPaths(run_dir=Path("/tmp"), base_filename="mock_report", output_log_file=Path("/tmp/mock_run.log"))
 
     def generate(self, result: ExecutionResult, paths: RunPaths) -> None:
         pass
@@ -102,6 +104,10 @@ class MockErrorFixer(ErrorFixerPort):
 class MockErrorAnalystAgent:
     async def analyze_error(self, command: Command, error: Error) -> str:
         return "Mock AI analysis of the error."
+
+class MockSecurityAdvisorAgent:
+    async def provide_advice(self, result: ExecutionResult) -> str:
+        return "Mock security advice."
 
 # --- Test Fixtures ---
 
@@ -134,6 +140,7 @@ def setup(nmap_tool, whois_tool):
     report_generators = [MockReportGenerator()]
     error_analyst = MockErrorAnalystAgent()
     tool_installer = MockToolInstallerAgent()
+    security_advisor = MockSecurityAdvisorAgent()
     logger = MockLogger()
 
     config = Config(allow_system_install=True)
@@ -146,26 +153,29 @@ def setup(nmap_tool, whois_tool):
         report_generators=report_generators,
         error_analyst=error_analyst,
         tool_installer=tool_installer,
+        security_advisor=security_advisor,
         logger=logger,
         config=config,
         audit_logger=audit_logger,
         consent_service=consent_service,
         execution_history=execution_history
     )
-    return orchestrator, tool_adapters, report_generators, error_analyst, tool_installer, nmap_runner, whois_runner
+    return orchestrator, tool_adapters, report_generators, error_analyst, tool_installer, security_advisor, nmap_runner, whois_runner
 
 # --- Test Cases ---
 
 @pytest.mark.asyncio
 async def test_uses_specific_runner_when_available(setup):
-    orchestrator, _, _, _, _, nmap_runner, whois_runner = setup
-    await orchestrator.execute("nmap -sV localhost")
+    orchestrator, _, _, _, _, security_advisor, nmap_runner, whois_runner = setup
+    result = await orchestrator.execute("nmap -sV localhost")
     assert nmap_runner.call_count == 1
     assert whois_runner.call_count == 0
+    assert result.success is True
+    assert result.ai_advice == "Mock security advice."
 
 @pytest.mark.asyncio
 async def test_installs_tool_if_not_installed(setup):
-    orchestrator, _, _, _, tool_installer, _, _ = setup
+    orchestrator, _, _, _, tool_installer, _, _, _ = setup
 
     # We don't need to mock the adapter anymore, just the installer logic
     # In a real scenario, the ToolInstallerAgent would handle this.
@@ -176,7 +186,7 @@ async def test_installs_tool_if_not_installed(setup):
 
 @pytest.mark.asyncio
 async def test_install_tool_fails(setup):
-    orchestrator, _, _, _, tool_installer, _, _ = setup
+    orchestrator, _, _, _, tool_installer, _, _, _ = setup
 
     # To simulate an installation failure, we can mock the installer agent
     def fake_install_fail(tool):
@@ -208,6 +218,7 @@ async def test_error_analyst_is_called_on_failure(nmap_tool):
     consent_service = MockSecurityComplianceAgent()
     execution_history = MockExecutionHistory()
     tool_installer = MockToolInstallerAgent()
+    security_advisor = MockSecurityAdvisorAgent()
 
     orchestrator = OrchestratorAgent(
         parser=RegexCommandParserAdapter(),
@@ -215,6 +226,7 @@ async def test_error_analyst_is_called_on_failure(nmap_tool):
         report_generators=report_generators,
         error_analyst=error_analyst,
         tool_installer=tool_installer,
+        security_advisor=security_advisor,
         logger=MockLogger(),
         config=config,
         audit_logger=audit_logger,

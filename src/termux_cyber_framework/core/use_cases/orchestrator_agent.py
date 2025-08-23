@@ -1,3 +1,4 @@
+import os
 from typing import Dict, Optional
 from datetime import datetime
 from termux_cyber_framework.core.domain.models import ExecutionResult, Command, Error, Tool, InstallInfo
@@ -18,6 +19,7 @@ from termux_cyber_framework.core.use_cases.ports import (
 )
 from termux_cyber_framework.agents.error_analyst_agent import ErrorAnalystAgent
 from termux_cyber_framework.agents.tool_installer_agent import ToolInstallerAgent
+from termux_cyber_framework.agents.security_advisor_agent import SecurityAdvisorAgent
 
 
 class OrchestratorAgent:
@@ -32,6 +34,7 @@ class OrchestratorAgent:
         report_generators: List[ReportGeneratorPort],
         error_analyst: ErrorAnalystAgent,
         tool_installer: ToolInstallerAgent,
+        security_advisor: SecurityAdvisorAgent,
         logger: LoggerPort,
         config: Config,
         audit_logger: AuditLoggerPort,
@@ -43,6 +46,7 @@ class OrchestratorAgent:
         self.report_generators = report_generators
         self.error_analyst = error_analyst
         self.tool_installer = tool_installer
+        self.security_advisor = security_advisor
         self.logger = logger
         self.config = config
         self.audit_logger = audit_logger
@@ -84,7 +88,8 @@ class OrchestratorAgent:
             )
 
         result = adapter.run(tool, command, paths)
-        result.output_log_file = str(paths.output_log_file) # Set the log file path in the result
+        result.paths = paths
+        result.output_log_file = str(paths.output_log_file)
 
         self.logger.log(f"Command execution finished. Success: {result.success}", level=LogLevel.DEBUG)
         return result
@@ -117,12 +122,17 @@ class OrchestratorAgent:
             result = await self._run_command_flow(command)
             result.consent_given = consent_given
 
-            # If the command fails, consult the error analyst
+            # If the command fails, consult the error analyst. Otherwise, get security advice.
             if not result.success and result.error:
                 self.logger.log("Command failed. Consulting Error Analyst Agent...", level=LogLevel.WARNING)
                 analysis = await self.error_analyst.analyze_error(result.command, result.error)
                 result.error.ai_analysis = analysis
                 self.logger.log(f"Error analysis received:\n{analysis}", level=LogLevel.DEBUG)
+            elif result.success:
+                self.logger.log("Command successful. Consulting Security Advisor Agent...", level=LogLevel.INFO)
+                advice = await self.security_advisor.provide_advice(result)
+                result.ai_advice = advice
+                self.logger.log(f"Security advice received: {advice}", level=LogLevel.DEBUG)
 
         except (ValueError, RuntimeError) as e:
             self.logger.log(f"A critical error occurred: {e}", level=LogLevel.ERROR)
@@ -139,11 +149,16 @@ class OrchestratorAgent:
             )
 
         self.logger.log("Generating reports.")
+        paths = result.paths
+
         artifact_paths = []
-        for report_generator in self.report_generators:
-            paths = report_generator.prepare_report_paths(result.command.tool_name)
-            report_generator.generate(result, paths)
-            artifact_paths.append(str(paths.summary_file))
+        if paths:
+            for report_generator in self.report_generators:
+                report_generator.generate(result, paths)
+
+            # Add all generated report files to artifacts
+            artifact_paths.append(os.path.join(paths.run_dir, f"{paths.base_filename}.txt"))
+            artifact_paths.append(os.path.join(paths.run_dir, f"{paths.base_filename}.json"))
             if paths.output_log_file:
                 artifact_paths.append(str(paths.output_log_file))
 

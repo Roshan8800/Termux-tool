@@ -27,14 +27,15 @@ class JsonReporter(ReportGeneratorPort):
         run_dir = os.path.join(self.reports_dir, date_str, tool_name)
         os.makedirs(run_dir, exist_ok=True)
 
-        summary_path = os.path.join(run_dir, f"{time_str}.json")
-        log_path = os.path.join(run_dir, f"{time_str}.log")
-        return RunPaths(summary_file=summary_path, output_log_file=log_path)
+        base_filename = f"{time_str}"
+        log_path = os.path.join(run_dir, f"{base_filename}.log")
+        return RunPaths(run_dir=run_dir, base_filename=base_filename, output_log_file=log_path)
 
     def generate(self, result: ExecutionResult, paths: RunPaths) -> None:
         """
         Saves the report to a JSON file and the output to a log file.
         """
+        summary_file = os.path.join(paths.run_dir, f"{paths.base_filename}.json")
         report = {
             "tool_used": result.command.tool_name,
             "command_executed": result.command.raw_command,
@@ -44,14 +45,15 @@ class JsonReporter(ReportGeneratorPort):
             "status": "Success" if result.success else "Failure",
             "error_message": result.error.message if result.error else None,
             "ai_error_analysis": result.error.ai_analysis if result.error else None,
+            "ai_security_advice": result.ai_advice,
             "user_consent": result.consent_given,
-            "report_generated": str(paths.summary_file),
+            "report_generated": str(summary_file),
             "output_log_file": str(paths.output_log_file),
             "output": result.output,
         }
 
         try:
-            with open(paths.summary_file, 'w') as f:
+            with open(summary_file, 'w') as f:
                 json.dump(report, f, indent=4)
 
             if paths.output_log_file:

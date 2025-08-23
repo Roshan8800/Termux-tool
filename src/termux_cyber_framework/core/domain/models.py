@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
+from .run_paths import RunPaths
 
 class InstallInfo(BaseModel):
     """
@@ -54,9 +55,11 @@ class ExecutionResult(BaseModel):
     start_time: datetime = Field(..., description="The timestamp when the command started.")
     end_time: datetime = Field(..., description="The timestamp when the command ended.")
     pid: Optional[int] = Field(None, description="The process ID of the command.")
+    paths: Optional[RunPaths] = Field(None, description="The paths used for report and log files.")
     output_log_file: Optional[str] = Field(None, description="The path to the log file containing the command's output.")
     findings: Optional[List[dict]] = Field(None, description="A list of structured findings from the tool's output.")
     consent_given: bool = Field(False, description="Whether the user provided consent for the command to be executed.")
+    ai_advice: Optional[str] = Field(None, description="An AI-generated suggestion for the next action.")
 
 
 class Remediation(BaseModel):

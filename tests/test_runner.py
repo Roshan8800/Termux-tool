@@ -35,7 +35,7 @@ def test_generic_runner_success(generic_tool, tmp_path):
     adapter = GenericRunner(command_runner=mock_runner)
 
     # Act
-    paths = RunPaths(summary_file=tmp_path / "summary.json", output_log_file=tmp_path / "run.log")
+    paths = RunPaths(run_dir=tmp_path, base_filename="test_run", output_log_file=tmp_path / "run.log")
     result = adapter.run(generic_tool, command, paths)
 
     # Assert
@@ -51,7 +51,7 @@ def test_nmap_adapter_adds_default_args(nmap_tool, tmp_path):
     adapter = NmapAdapter(command_runner=mock_runner)
 
     # Act
-    paths = RunPaths(summary_file=tmp_path / "summary.json", output_log_file=tmp_path / "run.log")
+    paths = RunPaths(run_dir=tmp_path, base_filename="test_run", output_log_file=tmp_path / "run.log")
     adapter.run(nmap_tool, command, paths)
 
     # Assert
@@ -65,7 +65,7 @@ def test_nmap_adapter_chunks_cidr(nmap_tool, tmp_path):
     adapter = NmapAdapter(command_runner=mock_runner)
 
     # Act
-    paths = RunPaths(summary_file=tmp_path / "summary.json", output_log_file=tmp_path / "run.log")
+    paths = RunPaths(run_dir=tmp_path, base_filename="test_run", output_log_file=tmp_path / "run.log")
     adapter.run(nmap_tool, command, paths)
 
     # Assert
@@ -81,7 +81,7 @@ def test_sqlmap_adapter_adds_default_args(sqlmap_tool, tmp_path):
     adapter = SqlmapAdapter(command_runner=mock_runner)
 
     # Act
-    paths = RunPaths(summary_file=tmp_path / "summary.json", output_log_file=tmp_path / "run.log")
+    paths = RunPaths(run_dir=tmp_path, base_filename="test_run", output_log_file=tmp_path / "run.log")
     adapter.run(sqlmap_tool, command, paths)
 
     # Assert
@@ -99,7 +99,7 @@ def test_sqlmap_adapter_parses_output(sqlmap_tool, tmp_path):
     adapter = SqlmapAdapter(command_runner=mock_runner)
 
     # Act
-    paths = RunPaths(summary_file=tmp_path / "summary.json", output_log_file=tmp_path / "run.log")
+    paths = RunPaths(run_dir=tmp_path, base_filename="test_run", output_log_file=tmp_path / "run.log")
     result = adapter.run(sqlmap_tool, command, paths)
 
     # Assert

@@ -27,16 +27,17 @@ class TxtReporter(ReportGeneratorPort):
         run_dir = os.path.join(self.reports_dir, date_str, tool_name)
         os.makedirs(run_dir, exist_ok=True)
 
-        summary_path = os.path.join(run_dir, f"{time_str}.txt")
-        log_path = os.path.join(run_dir, f"{time_str}.log")
-        return RunPaths(summary_file=summary_path, output_log_file=log_path)
+        base_filename = f"{time_str}"
+        log_path = os.path.join(run_dir, f"{base_filename}.log")
+        return RunPaths(run_dir=run_dir, base_filename=base_filename, output_log_file=log_path)
 
     def generate(self, result: ExecutionResult, paths: RunPaths) -> None:
         """
         Saves the report to a text file and the output to a log file.
         """
+        summary_file = os.path.join(paths.run_dir, f"{paths.base_filename}.txt")
         try:
-            with open(paths.summary_file, 'w') as f:
+            with open(summary_file, 'w') as f:
                 f.write("--- Execution Report ---\n")
                 f.write(f"Tool Used: {result.command.tool_name}\n")
                 f.write(f"Command Executed: {result.command.raw_command}\n")
@@ -50,8 +51,11 @@ class TxtReporter(ReportGeneratorPort):
                     if result.error.ai_analysis:
                         f.write("\n--- AI Error Analysis ---\n")
                         f.write(f"{result.error.ai_analysis}\n")
+                if result.ai_advice:
+                    f.write("\n--- AI Security Advisor ---\n")
+                    f.write(f"{result.ai_advice}\n")
                 f.write(f"User Consent: {result.consent_given}\n")
-                f.write(f"Report Generated: {paths.summary_file}\n")
+                f.write(f"Report Generated: {summary_file}\n")
                 f.write(f"Full output logged to: {paths.output_log_file}\n")
 
 
@@ -71,7 +75,7 @@ class TxtReporter(ReportGeneratorPort):
         report_text.append("Status: ", style="bold")
         report_text.append(status_text, style=status_style)
         report_text.append("\nReport saved: ", style="bold")
-        report_text.append(str(paths.summary_file))
+        report_text.append(str(summary_file))
 
         panel = Panel(
             report_text,
