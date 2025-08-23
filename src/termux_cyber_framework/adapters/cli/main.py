@@ -24,6 +24,7 @@ from termux_cyber_framework.agents.doctor_agent import DoctorAgent
 from termux_cyber_framework.agents.config_manager_agent import ConfigManagerAgent
 from termux_cyber_framework.agents.update_agent import UpdateAgent
 from termux_cyber_framework.agents.file_manager_agent import FileManagerAgent
+from termux_cyber_framework.agents.dependency_auditor_agent import DependencyAuditorAgent
 from termux_cyber_framework.adapters.tool_installer.git_installer import GitInstallerAdapter
 from termux_cyber_framework.adapters.tool_installer.pip_installer import PipInstallerAdapter
 from termux_cyber_framework.adapters.tool_installer.pkg_installer import PkgInstallerAdapter
@@ -105,8 +106,31 @@ def build_agent_system(
     )
 
 def display_welcome():
-    # ... (omitted for brevity)
-    pass
+    """Displays the welcome message, logo, and disclaimer."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+    logo = r"""
+[bold blue]
+  _____           _
+ |  __ \         | |
+ | |__) |___  ___| |_ _ __ ___  _ __
+ |  _  // _ \/ __| __| '__/ _ \| '_ \
+ | | \ \  __/\__ \ |_| | | (_) | | | |
+ |_|  \_\___||___/\__|_|  \___/|_| |_|
+[/bold blue]
+    """
+
+    console.print(logo)
+    console.print("[bold]Welcome to the Termux Cyber Framework[/bold]")
+    console.print("Created by [bold green]Roshan[/bold green]\n")
+
+    disclaimer = """
+    This tool is for educational purposes only. Do not use it to cause harm.
+    I am not responsible for any misuse; responsibility rests with the user.
+    """
+
+    console.print(Panel(disclaimer, title="[bold yellow]Disclaimer[/bold yellow]", border_style="yellow"))
+    console.print("")
 
 def run_health_checks():
     """Initializes and runs the DoctorAgent to perform system health checks."""
@@ -132,9 +156,136 @@ def run_health_checks():
         )
         doctor.run_checks()
     except (FileNotFoundError, ValueError) as e:
-        # ... (omitted for brevity)
+        error_panel = Panel(
+            f"[bold]A critical error occurred during system health checks:[/bold]\n\n[red]{e}[/red]\n\nPlease resolve the issue and try again.",
+            title="[bold red]System Health Check Failed[/bold red]",
+            border_style="red",
+            expand=False
+        )
+        console.print(error_panel)
         raise typer.Exit(code=1)
 
-# ... (rest of the file omitted for brevity)
-# ... (All commands: set-key, update, run, shell)
-# ... (if __name__ == "__main__":)
+
+@app.command()
+def audit():
+    """
+    Runs a dependency audit to check for potential conflicts.
+    """
+    logger = LoggerAgent()
+    agent = DependencyAuditorAgent(logger=logger)
+    findings = agent.run_audit()
+
+    if not findings:
+        console.print("[bold green]Dependency audit complete. No issues found.[/bold green]")
+        return
+
+    console.print("\n[bold yellow]Dependency audit found the following potential issues:[/bold yellow]")
+    for finding in findings:
+        color = "yellow" if finding.get("level") == "WARNING" else "red"
+        panel = Panel(
+            f"{finding.get('message')}",
+            title=f"[bold {color}]{finding.get('level')}[/bold {color}]",
+            border_style=color,
+            expand=False
+        )
+        console.print(panel)
+
+
+@app.command()
+def set_key(
+    service: str = typer.Argument(..., help="The name of the service (e.g., 'google_gemini', 'open_router')."),
+    key: str = typer.Argument(..., help="The API key value.")
+):
+    """
+    Sets and saves an API key for a given service in the config file.
+    """
+    from termux_cyber_framework.agents.config_manager_agent import ConfigManagerAgent
+
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
+    config_path = os.path.join(project_root, "config", "config.json")
+
+    logger = LoggerAgent()
+    file_manager = FileManagerAgent(logger=logger)
+    agent = ConfigManagerAgent(file_manager=file_manager, config_path=config_path)
+    agent.set_api_key(service, key)
+
+    console.print(f"[bold green]API key for '{service}' has been set successfully.[/bold green]")
+
+
+@app.command()
+def update():
+    """
+    Checks for and applies updates to the framework and its tools.
+    """
+    orchestrator = build_agent_system()
+
+    async def main():
+        result_message = await orchestrator.update_system()
+        console.print(f"[bold yellow]{result_message}[/bold yellow]")
+
+    asyncio.run(main())
+
+
+@app.command()
+def run(
+    command: str = typer.Argument(..., help="The command to run in natural language."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Perform a dry run without executing any commands.")
+):
+    """
+    Runs a command by parsing it, ensuring the tool is installed,
+    and executing it using the best available runner.
+    """
+    config = Config(dry_run=dry_run)
+    orchestrator = build_agent_system(config=config)
+
+    async def main():
+        result = await orchestrator.execute(command)
+        if result and result.ai_advice:
+            console.print(Panel(result.ai_advice, title="[bold blue]Security Advisor[/bold blue]", border_style="blue", expand=False))
+
+    asyncio.run(main())
+
+@app.command()
+def shell():
+    """
+    Starts an interactive shell session to run multiple commands.
+    """
+    console.print("[bold green]Starting interactive shell...[/bold green]")
+    console.print("Type ':help' for a list of commands, or ':exit' to quit.")
+
+    orchestrator = build_agent_system()
+
+    while True:
+        try:
+            command_str = console.input("[bold cyan]cyber-ai>[/bold cyan] ")
+
+            if not command_str.strip():
+                continue
+
+            if command_str.lower() == ':exit':
+                console.print("[bold yellow]Exiting shell.[/bold yellow]")
+                break
+
+            if command_str.lower() == ':help':
+                console.print("\n[bold]Available Meta-Commands:[/bold]")
+                console.print("  :help   - Show this help message")
+                console.print("  :exit   - Exit the interactive shell\n")
+                continue
+
+            async def main():
+                result = await orchestrator.execute(command_str)
+                if result and result.ai_advice:
+                    console.print(Panel(result.ai_advice, title="[bold blue]Security Advisor[/bold blue]", border_style="blue", expand=False))
+
+            asyncio.run(main())
+
+        except KeyboardInterrupt:
+            console.print("\n[bold yellow]Use ':exit' to quit.[/bold yellow]")
+        except Exception as e:
+            console.print(f"[bold red]An unexpected error occurred: {e}[/bold red]")
+
+
+if __name__ == "__main__":
+    display_welcome()
+    run_health_checks()
+    app()
