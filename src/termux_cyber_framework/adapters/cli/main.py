@@ -133,7 +133,9 @@ def run(
     orchestrator = build_agent_system(config=config)
 
     async def main():
-        await orchestrator.execute(command)
+        result = await orchestrator.execute(command)
+        if result and result.ai_advice:
+            console.print(Panel(result.ai_advice, title="[bold blue]Security Advisor[/bold blue]", border_style="blue", expand=False))
 
     asyncio.run(main())
 
@@ -168,7 +170,9 @@ def shell():
 
             # If it's not a meta-command, execute it
             async def main():
-                await orchestrator.execute(command_str)
+                result = await orchestrator.execute(command_str)
+                if result and result.ai_advice:
+                    console.print(Panel(result.ai_advice, title="[bold blue]Security Advisor[/bold blue]", border_style="blue", expand=False))
 
             asyncio.run(main())
 
