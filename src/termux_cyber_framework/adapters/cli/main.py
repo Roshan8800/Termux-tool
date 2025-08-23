@@ -1,7 +1,9 @@
 import asyncio
 import typer
 import os
+import sys
 from typing import Optional
+
 from termux_cyber_framework.core.use_cases.orchestrator_agent import OrchestratorAgent
 from termux_cyber_framework.core.command_runner import CommandRunner
 from termux_cyber_framework.core.domain.config import Config
@@ -18,6 +20,7 @@ from termux_cyber_framework.agents.error_fixer_agent import ErrorFixerAgent
 from termux_cyber_framework.agents.tool_installer_agent import ToolInstallerAgent
 from termux_cyber_framework.agents.security_advisor_agent import SecurityAdvisorAgent
 from termux_cyber_framework.agents.network_agent import NetworkAgent
+from termux_cyber_framework.agents.doctor_agent import DoctorAgent
 from termux_cyber_framework.adapters.tool_installer.git_installer import GitInstallerAdapter
 from termux_cyber_framework.adapters.tool_installer.pip_installer import PipInstallerAdapter
 from termux_cyber_framework.adapters.tool_installer.pkg_installer import PkgInstallerAdapter
@@ -52,7 +55,6 @@ def build_agent_system(
     # Correctly locate the project root to find the data directory
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
     tool_catalog_path = os.path.join(project_root, "data", "tool_catalog.json")
-    doctor_rules_path = os.path.join(project_root, "src", "termux_cyber_framework", "config", "doctor_rules.json")
 
     # Ports -> Adapters
     command_parser = parser or AIInterpreter(tool_catalog_path=tool_catalog_path)
@@ -73,7 +75,7 @@ def build_agent_system(
 
     # --- Agent Construction ---
     # TODO: The API key should not be hardcoded.
-    api_key = "AIzaSyB8B_5EXGahUCGiII5xAhqmX0YroSmvVek"
+    api_key = os.getenv("GOOGLE_API_KEY")
     error_analyst = ErrorAnalystAgent(api_key=api_key)
     error_fixer = ErrorFixerAgent(api_key=api_key)
     security_advisor = SecurityAdvisorAgent(api_key=api_key)
@@ -123,6 +125,31 @@ def display_welcome():
     console.print(Panel(disclaimer, title="[bold yellow]Disclaimer[/bold yellow]", border_style="yellow"))
     console.print("")
 
+def run_health_checks():
+    """Initializes and runs the DoctorAgent to perform system health checks."""
+    logger = LoggerAgent()
+
+    try:
+        # Correctly locate the project root to find config files
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
+        config_paths = [
+            os.path.join(project_root, "config", "config.json"),
+            os.path.join(project_root, "data", "tool_catalog.json")
+        ]
+        tool_catalog_path = os.path.join(project_root, "data", "tool_catalog.json")
+
+        doctor = DoctorAgent(logger=logger, config_paths=config_paths, tool_catalog_path=tool_catalog_path)
+        doctor.run_checks()
+    except (FileNotFoundError, ValueError) as e:
+        error_panel = Panel(
+            f"[bold]A critical error occurred during system health checks:[/bold]\n\n[red]{e}[/red]\n\nPlease resolve the issue and try again.",
+            title="[bold red]System Health Check Failed[/bold red]",
+            border_style="red",
+            expand=False
+        )
+        console.print(error_panel)
+        raise typer.Exit(code=1)
+
 @app.command()
 def run(
     command: str = typer.Argument(..., help="The command to run in natural language."),
@@ -141,7 +168,6 @@ def run(
             console.print(Panel(result.ai_advice, title="[bold blue]Security Advisor[/bold blue]", border_style="blue", expand=False))
 
     asyncio.run(main())
-
 
 @app.command()
 def shell():
@@ -187,4 +213,5 @@ def shell():
 
 if __name__ == "__main__":
     display_welcome()
+    run_health_checks()
     app()

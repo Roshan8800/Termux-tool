@@ -51,13 +51,13 @@ That's it! The script will handle everything for you. On systems like Kali or Pa
 
 ## How to Use
 
-The framework is designed to be intuitive. You interact with it using the `run` command followed by your command in plain English.
+The framework is designed to be intuitive. The recommended way to run the framework is using the provided startup script, which includes crash detection and auto-restart for a more stable experience.
 
-### Interactive Shell Mode
+### Recommended: Interactive Shell with Monitoring
 
-For an interactive experience, you can launch the framework's shell:
+To launch the framework's interactive shell, simply run the startup script:
 ```bash
-python -m src.termux_cyber_framework.main shell
+./start_framework.sh
 ```
 This will drop you into the `cyber-ai>` prompt, where you can enter natural language commands directly.
 
@@ -65,11 +65,19 @@ This will drop you into the `cyber-ai>` prompt, where you can enter natural lang
 - `:help` - Shows available commands.
 - `:exit` - Exits the shell.
 
-### Direct Command Execution
+### Alternative: Direct Execution (Without Monitoring)
 
+If you prefer to run the framework directly without the monitoring script (e.g., for development or debugging), you can use the following commands.
+
+**1. Interactive Shell:**
+```bash
+python3 -m src.termux_cyber_framework.adapters.cli.main shell
+```
+
+**2. Direct Command Execution:**
 To run a single command without entering the shell, use the `run` command:
 ```bash
-python -m src.termux_cyber_framework.main run "your natural language command"
+python3 -m src.termux_cyber_framework.adapters.cli.main run "your natural language command"
 ```
 
 ### Examples
