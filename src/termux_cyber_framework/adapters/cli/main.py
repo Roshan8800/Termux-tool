@@ -25,6 +25,7 @@ from termux_cyber_framework.agents.config_manager_agent import ConfigManagerAgen
 from termux_cyber_framework.agents.update_agent import UpdateAgent
 from termux_cyber_framework.agents.file_manager_agent import FileManagerAgent
 from termux_cyber_framework.agents.dependency_auditor_agent import DependencyAuditorAgent
+from termux_cyber_framework.agents.knowledge_agent import KnowledgeAgent
 from termux_cyber_framework.adapters.tool_installer.git_installer import GitInstallerAdapter
 from termux_cyber_framework.adapters.tool_installer.pip_installer import PipInstallerAdapter
 from termux_cyber_framework.adapters.tool_installer.pkg_installer import PkgInstallerAdapter
@@ -189,6 +190,48 @@ def audit():
             expand=False
         )
         console.print(panel)
+
+
+@app.command()
+def knowledge(
+    question: str = typer.Argument(..., help="The question you want to ask the knowledge agent.")
+):
+    """
+    Asks the Knowledge Agent a question about a cybersecurity topic.
+    """
+    logger = LoggerAgent()
+    file_manager = FileManagerAgent(logger=logger)
+
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
+    config_path = os.path.join(project_root, "config", "config.json")
+    tool_catalog_path = os.path.join(project_root, "data", "tool_catalog.json")
+
+    config_manager = ConfigManagerAgent(file_manager=file_manager, config_path=config_path)
+    api_key = config_manager.get_api_key("google_gemini") or os.getenv("GOOGLE_API_KEY")
+
+    if not api_key:
+        console.print("[bold red]API key not found. Please set it using the 'set-key' command or the GOOGLE_API_KEY environment variable.[/bold red]")
+        raise typer.Exit(code=1)
+
+    agent = KnowledgeAgent(
+        api_key=api_key,
+        file_manager=file_manager,
+        logger=logger,
+        tool_catalog_path=tool_catalog_path
+    )
+
+    async def main():
+        console.print("[bold yellow]Querying the knowledge base...[/bold yellow]")
+        answer = await agent.query(question)
+        panel = Panel(
+            answer,
+            title="[bold blue]Knowledge Agent Response[/bold blue]",
+            border_style="blue",
+            expand=True
+        )
+        console.print(panel)
+
+    asyncio.run(main())
 
 
 @app.command()
