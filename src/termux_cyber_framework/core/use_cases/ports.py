@@ -185,3 +185,14 @@ class DoctorPort(ABC):
         Diagnoses an error and returns a list of possible remediations.
         """
         pass
+
+class NetworkPort(ABC):
+    """
+    A port for checking network connectivity.
+    """
+    @abstractmethod
+    def check_internet_connection(self) -> bool:
+        """
+        Checks for an active internet connection.
+        """
+        pass

@@ -17,6 +17,7 @@ from termux_cyber_framework.agents.error_analyst_agent import ErrorAnalystAgent
 from termux_cyber_framework.agents.error_fixer_agent import ErrorFixerAgent
 from termux_cyber_framework.agents.tool_installer_agent import ToolInstallerAgent
 from termux_cyber_framework.agents.security_advisor_agent import SecurityAdvisorAgent
+from termux_cyber_framework.agents.network_agent import NetworkAgent
 from termux_cyber_framework.adapters.tool_installer.git_installer import GitInstallerAdapter
 from termux_cyber_framework.adapters.tool_installer.pip_installer import PipInstallerAdapter
 from termux_cyber_framework.adapters.tool_installer.pkg_installer import PkgInstallerAdapter
@@ -76,6 +77,7 @@ def build_agent_system(
     error_analyst = ErrorAnalystAgent(api_key=api_key)
     error_fixer = ErrorFixerAgent(api_key=api_key)
     security_advisor = SecurityAdvisorAgent(api_key=api_key)
+    network_agent = NetworkAgent(logger=logger)
     tool_installer = ToolInstallerAgent(installers=installers, logger=logger, config=config)
 
     return OrchestratorAgent(
@@ -86,6 +88,7 @@ def build_agent_system(
         error_fixer=error_fixer,
         tool_installer=tool_installer,
         security_advisor=security_advisor,
+        network_agent=network_agent,
         logger=logger,
         config=config,
         audit_logger=audit_logger,

@@ -22,6 +22,7 @@ from termux_cyber_framework.agents.error_analyst_agent import ErrorAnalystAgent
 from termux_cyber_framework.agents.tool_installer_agent import ToolInstallerAgent
 from termux_cyber_framework.agents.security_advisor_agent import SecurityAdvisorAgent
 from termux_cyber_framework.agents.error_fixer_agent import ErrorFixerAgent
+from termux_cyber_framework.agents.network_agent import NetworkAgent
 
 
 class OrchestratorAgent:
@@ -38,6 +39,7 @@ class OrchestratorAgent:
         error_fixer: ErrorFixerAgent,
         tool_installer: ToolInstallerAgent,
         security_advisor: SecurityAdvisorAgent,
+        network_agent: NetworkAgent,
         logger: LoggerPort,
         config: Config,
         audit_logger: AuditLoggerPort,
@@ -51,6 +53,7 @@ class OrchestratorAgent:
         self.error_fixer = error_fixer
         self.tool_installer = tool_installer
         self.security_advisor = security_advisor
+        self.network_agent = network_agent
         self.logger = logger
         self.config = config
         self.audit_logger = audit_logger
@@ -105,6 +108,9 @@ class OrchestratorAgent:
         """
         self.logger.log(f"Received new command: '{user_input}'.")
         try:
+            if not self.network_agent.check_internet_connection():
+                raise ConnectionError("[NetworkAgent] No internet connection. AI features unavailable.")
+
             command = await self.parser.parse_command(user_input)
             self.logger.log(f"Parsed command: Tool='{command.tool_name}', Args={command.args}", level=LogLevel.DEBUG)
 
@@ -128,37 +134,41 @@ class OrchestratorAgent:
 
             # If the command fails, engage error handling agents. Otherwise, get security advice.
             if not result.success and result.error:
-                self.logger.log("Command failed. Consulting Error Analyst and Error Fixer Agents...", level=LogLevel.WARNING)
+                if self.network_agent.check_internet_connection():
+                    self.logger.log("Command failed. Consulting Error Analyst and Error Fixer Agents...", level=LogLevel.WARNING)
 
-                # Get analysis and potential fix concurrently
-                analysis_task = self.error_analyst.analyze_error(result.command, result.error)
-                fix_task = self.error_fixer.suggest_fix(result.command, result.error)
+                    # Get analysis and potential fix concurrently
+                    analysis_task = self.error_analyst.analyze_error(result.command, result.error)
+                    fix_task = self.error_fixer.suggest_fix(result.command, result.error)
 
-                analysis, fixed_command = await asyncio.gather(analysis_task, fix_task)
+                    analysis, fixed_command = await asyncio.gather(analysis_task, fix_task)
 
-                result.error.ai_analysis = analysis
-                self.logger.log(f"Error analysis received:\n{analysis}", level=LogLevel.DEBUG)
+                    result.error.ai_analysis = analysis
+                    self.logger.log(f"Error analysis received:\n{analysis}", level=LogLevel.DEBUG)
 
-                # --- Conflict Resolution / Decision Making ---
-                if fixed_command:
-                    self.logger.log(f"AI suggests a fix: `{' '.join([fixed_command.tool_name] + fixed_command.args)}`")
-                    # Get user consent to apply the fix
-                    if self.consent_service.get_consent(fixed_command):
-                        self.logger.log("User consented to the fix. Retrying command...")
-                        result = await self._run_command_flow(fixed_command)
-                        result.consent_given = True # Mark consent for the fix
+                    # --- Conflict Resolution / Decision Making ---
+                    if fixed_command:
+                        self.logger.log(f"AI suggests a fix: `{' '.join([fixed_command.tool_name] + fixed_command.args)}`")
+                        # Get user consent to apply the fix
+                        if self.consent_service.get_consent(fixed_command):
+                            self.logger.log("User consented to the fix. Retrying command...")
+                            result = await self._run_command_flow(fixed_command)
+                            result.consent_given = True # Mark consent for the fix
+                        else:
+                            self.logger.log("User did not consent to the fix. Reporting initial failure.")
                     else:
-                        self.logger.log("User did not consent to the fix. Reporting initial failure.")
+                        self.logger.log("Error Fixer Agent had no suggestion.")
                 else:
-                    self.logger.log("Error Fixer Agent had no suggestion.")
+                    self.logger.log("Command failed, but no internet connection to consult AI agents.", level=LogLevel.WARNING)
 
             elif result.success:
-                self.logger.log("Command successful. Consulting Security Advisor Agent...", level=LogLevel.INFO)
-                advice = await self.security_advisor.provide_advice(result)
-                result.ai_advice = advice
-                self.logger.log(f"Security advice received: {advice}", level=LogLevel.DEBUG)
+                if self.network_agent.check_internet_connection():
+                    self.logger.log("Command successful. Consulting Security Advisor Agent...", level=LogLevel.INFO)
+                    advice = await self.security_advisor.provide_advice(result)
+                    result.ai_advice = advice
+                    self.logger.log(f"Security advice received: {advice}", level=LogLevel.DEBUG)
 
-        except (ValueError, RuntimeError) as e:
+        except (ValueError, RuntimeError, ConnectionError) as e:
             self.logger.log(f"A critical error occurred: {e}", level=LogLevel.ERROR)
             command = Command(tool_name="framework", args=[], raw_command=user_input)
             error = Error(message=str(e))

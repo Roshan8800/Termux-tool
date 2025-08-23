@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from typing import Optional, List, Dict
 from datetime import datetime
 from pathlib import Path
@@ -15,13 +15,20 @@ from termux_cyber_framework.core.use_cases.ports import (
     LoggerPort,
     DoctorPort,
     AuditLoggerPort,
-    ConsentPort
+    ConsentPort,
+    NetworkPort
 )
 from termux_cyber_framework.core.use_cases.orchestrator_agent import OrchestratorAgent
 from termux_cyber_framework.adapters.command_parser.regex_parser import RegexCommandParserAdapter
 from tests.mocks import MockAuditLogger, MockExecutionHistory, MockToolInstallerAgent, MockErrorFixerAgent
 
 # --- Mock Adapters for Testing ---
+
+class MockNetworkAgent(NetworkPort):
+    def __init__(self, is_online: bool = True):
+        self.is_online = is_online
+    def check_internet_connection(self) -> bool:
+        return self.is_online
 
 class MockDoctor(DoctorPort):
     def diagnose(self, error: Error, command: Command) -> list[Remediation]:
@@ -139,6 +146,7 @@ def setup(nmap_tool, whois_tool):
     security_advisor = MockSecurityAdvisorAgent()
     error_fixer = MockErrorFixerAgent()
     logger = MockLogger()
+    network_agent = MockNetworkAgent()
 
     config = Config(allow_system_install=True)
     audit_logger = MockAuditLogger()
@@ -156,7 +164,8 @@ def setup(nmap_tool, whois_tool):
         config=config,
         audit_logger=audit_logger,
         consent_service=consent_service,
-        execution_history=execution_history
+        execution_history=execution_history,
+        network_agent=network_agent
     )
     return orchestrator, tool_adapters, report_generators, error_analyst, error_fixer, tool_installer, security_advisor, nmap_runner, whois_runner
 
@@ -221,6 +230,7 @@ async def test_error_analyst_is_called_when_no_fix_is_found(nmap_tool):
     execution_history = MockExecutionHistory()
     tool_installer = MockToolInstallerAgent()
     security_advisor = MockSecurityAdvisorAgent()
+    network_agent = MockNetworkAgent()
 
     orchestrator = OrchestratorAgent(
         parser=RegexCommandParserAdapter(),
@@ -234,7 +244,8 @@ async def test_error_analyst_is_called_when_no_fix_is_found(nmap_tool):
         config=config,
         audit_logger=audit_logger,
         consent_service=consent_service,
-        execution_history=execution_history
+        execution_history=execution_history,
+        network_agent=network_agent
     )
 
     # Act
@@ -276,6 +287,7 @@ async def test_orchestrator_attempts_auto_fix_on_failure(nmap_tool):
     execution_history = MockExecutionHistory()
     tool_installer = MockToolInstallerAgent()
     security_advisor = MockSecurityAdvisorAgent()
+    network_agent = MockNetworkAgent()
 
     orchestrator = OrchestratorAgent(
         parser=RegexCommandParserAdapter(),
@@ -289,7 +301,8 @@ async def test_orchestrator_attempts_auto_fix_on_failure(nmap_tool):
         config=config,
         audit_logger=audit_logger,
         consent_service=consent_service,
-        execution_history=execution_history
+        execution_history=execution_history,
+        network_agent=network_agent
     )
 
     # Act
