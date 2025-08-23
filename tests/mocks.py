@@ -103,6 +103,9 @@ class MockErrorAnalystAgent:
     async def analyze_error(self, command: Command, error) -> str:
         return "Mock AI analysis of the error."
 
+class MockErrorFixerAgent:
+    async def suggest_fix(self, command: Command, error) -> Optional[Command]:
+        return None # Default to no fix
 
 class MockToolInstallerAgent:
     def __init__(self):

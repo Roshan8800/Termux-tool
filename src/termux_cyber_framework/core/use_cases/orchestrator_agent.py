@@ -1,4 +1,5 @@
 import os
+import asyncio
 from typing import Dict, Optional
 from datetime import datetime
 from termux_cyber_framework.core.domain.models import ExecutionResult, Command, Error, Tool, InstallInfo
@@ -20,6 +21,7 @@ from termux_cyber_framework.core.use_cases.ports import (
 from termux_cyber_framework.agents.error_analyst_agent import ErrorAnalystAgent
 from termux_cyber_framework.agents.tool_installer_agent import ToolInstallerAgent
 from termux_cyber_framework.agents.security_advisor_agent import SecurityAdvisorAgent
+from termux_cyber_framework.agents.error_fixer_agent import ErrorFixerAgent
 
 
 class OrchestratorAgent:
@@ -33,6 +35,7 @@ class OrchestratorAgent:
         tool_adapters: Dict[str, ToolAdapterPort],
         report_generators: List[ReportGeneratorPort],
         error_analyst: ErrorAnalystAgent,
+        error_fixer: ErrorFixerAgent,
         tool_installer: ToolInstallerAgent,
         security_advisor: SecurityAdvisorAgent,
         logger: LoggerPort,
@@ -45,6 +48,7 @@ class OrchestratorAgent:
         self.tool_adapters = tool_adapters
         self.report_generators = report_generators
         self.error_analyst = error_analyst
+        self.error_fixer = error_fixer
         self.tool_installer = tool_installer
         self.security_advisor = security_advisor
         self.logger = logger
@@ -122,12 +126,32 @@ class OrchestratorAgent:
             result = await self._run_command_flow(command)
             result.consent_given = consent_given
 
-            # If the command fails, consult the error analyst. Otherwise, get security advice.
+            # If the command fails, engage error handling agents. Otherwise, get security advice.
             if not result.success and result.error:
-                self.logger.log("Command failed. Consulting Error Analyst Agent...", level=LogLevel.WARNING)
-                analysis = await self.error_analyst.analyze_error(result.command, result.error)
+                self.logger.log("Command failed. Consulting Error Analyst and Error Fixer Agents...", level=LogLevel.WARNING)
+
+                # Get analysis and potential fix concurrently
+                analysis_task = self.error_analyst.analyze_error(result.command, result.error)
+                fix_task = self.error_fixer.suggest_fix(result.command, result.error)
+
+                analysis, fixed_command = await asyncio.gather(analysis_task, fix_task)
+
                 result.error.ai_analysis = analysis
                 self.logger.log(f"Error analysis received:\n{analysis}", level=LogLevel.DEBUG)
+
+                # --- Conflict Resolution / Decision Making ---
+                if fixed_command:
+                    self.logger.log(f"AI suggests a fix: `{' '.join([fixed_command.tool_name] + fixed_command.args)}`")
+                    # Get user consent to apply the fix
+                    if self.consent_service.get_consent(fixed_command):
+                        self.logger.log("User consented to the fix. Retrying command...")
+                        result = await self._run_command_flow(fixed_command)
+                        result.consent_given = True # Mark consent for the fix
+                    else:
+                        self.logger.log("User did not consent to the fix. Reporting initial failure.")
+                else:
+                    self.logger.log("Error Fixer Agent had no suggestion.")
+
             elif result.success:
                 self.logger.log("Command successful. Consulting Security Advisor Agent...", level=LogLevel.INFO)
                 advice = await self.security_advisor.provide_advice(result)

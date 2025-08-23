@@ -19,7 +19,7 @@ from termux_cyber_framework.core.use_cases.ports import (
 )
 from termux_cyber_framework.core.use_cases.orchestrator_agent import OrchestratorAgent
 from termux_cyber_framework.adapters.command_parser.regex_parser import RegexCommandParserAdapter
-from tests.mocks import MockAuditLogger, MockExecutionHistory, MockToolInstallerAgent
+from tests.mocks import MockAuditLogger, MockExecutionHistory, MockToolInstallerAgent, MockErrorFixerAgent
 
 # --- Mock Adapters for Testing ---
 
@@ -97,10 +97,6 @@ class MockReportGenerator(ReportGeneratorPort):
     def generate(self, result: ExecutionResult, paths: RunPaths) -> None:
         pass
 
-class MockErrorFixer(ErrorFixerPort):
-    async def suggest_fix(self, error: Error, command: Command) -> Optional[Command]:
-        return None # Default to no fix
-
 class MockErrorAnalystAgent:
     async def analyze_error(self, command: Command, error: Error) -> str:
         return "Mock AI analysis of the error."
@@ -141,6 +137,7 @@ def setup(nmap_tool, whois_tool):
     error_analyst = MockErrorAnalystAgent()
     tool_installer = MockToolInstallerAgent()
     security_advisor = MockSecurityAdvisorAgent()
+    error_fixer = MockErrorFixerAgent()
     logger = MockLogger()
 
     config = Config(allow_system_install=True)
@@ -152,6 +149,7 @@ def setup(nmap_tool, whois_tool):
         tool_adapters=tool_adapters,
         report_generators=report_generators,
         error_analyst=error_analyst,
+        error_fixer=error_fixer,
         tool_installer=tool_installer,
         security_advisor=security_advisor,
         logger=logger,
@@ -160,13 +158,13 @@ def setup(nmap_tool, whois_tool):
         consent_service=consent_service,
         execution_history=execution_history
     )
-    return orchestrator, tool_adapters, report_generators, error_analyst, tool_installer, security_advisor, nmap_runner, whois_runner
+    return orchestrator, tool_adapters, report_generators, error_analyst, error_fixer, tool_installer, security_advisor, nmap_runner, whois_runner
 
 # --- Test Cases ---
 
 @pytest.mark.asyncio
 async def test_uses_specific_runner_when_available(setup):
-    orchestrator, _, _, _, _, security_advisor, nmap_runner, whois_runner = setup
+    orchestrator, _, _, _, _, _, security_advisor, nmap_runner, whois_runner = setup
     result = await orchestrator.execute("nmap -sV localhost")
     assert nmap_runner.call_count == 1
     assert whois_runner.call_count == 0
@@ -175,7 +173,7 @@ async def test_uses_specific_runner_when_available(setup):
 
 @pytest.mark.asyncio
 async def test_installs_tool_if_not_installed(setup):
-    orchestrator, _, _, _, tool_installer, _, _, _ = setup
+    orchestrator, _, _, _, _, tool_installer, _, _, _ = setup
 
     # We don't need to mock the adapter anymore, just the installer logic
     # In a real scenario, the ToolInstallerAgent would handle this.
@@ -186,7 +184,7 @@ async def test_installs_tool_if_not_installed(setup):
 
 @pytest.mark.asyncio
 async def test_install_tool_fails(setup):
-    orchestrator, _, _, _, tool_installer, _, _, _ = setup
+    orchestrator, _, _, _, _, tool_installer, _, _, _ = setup
 
     # To simulate an installation failure, we can mock the installer agent
     def fake_install_fail(tool):
@@ -199,9 +197,10 @@ async def test_install_tool_fails(setup):
     assert "Failed to install tool" in result.error.message
 
 @pytest.mark.asyncio
-async def test_error_analyst_is_called_on_failure(nmap_tool):
+async def test_error_analyst_is_called_when_no_fix_is_found(nmap_tool):
     """
-    Tests that the ErrorAnalystAgent is called when a command fails.
+    Tests that the ErrorAnalystAgent is called when a command fails and the
+    ErrorFixerAgent does not provide a fix.
     """
     # Arrange
     nmap_runner = MockToolRunner("NmapRunner", fail_on_first_run=True)
@@ -212,6 +211,9 @@ async def test_error_analyst_is_called_on_failure(nmap_tool):
 
     # Spy on the analyze_error method
     error_analyst.analyze_error = AsyncMock(wraps=error_analyst.analyze_error)
+
+    error_fixer = MockErrorFixerAgent()
+    error_fixer.suggest_fix = AsyncMock(return_value=None) # No fix found
 
     config = Config(allow_system_install=True)
     audit_logger = MockAuditLogger()
@@ -225,6 +227,7 @@ async def test_error_analyst_is_called_on_failure(nmap_tool):
         tool_adapters=tool_adapters,
         report_generators=report_generators,
         error_analyst=error_analyst,
+        error_fixer=error_fixer,
         tool_installer=tool_installer,
         security_advisor=security_advisor,
         logger=MockLogger(),
@@ -241,3 +244,60 @@ async def test_error_analyst_is_called_on_failure(nmap_tool):
     assert result.success is False
     assert result.error.ai_analysis == "Mock AI analysis of the error."
     error_analyst.analyze_error.assert_called_once()
+    error_fixer.suggest_fix.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_attempts_auto_fix_on_failure(nmap_tool):
+    """
+    Tests the auto-fix flow: a command fails, the fixer suggests a new command,
+    and the orchestrator retries it after getting consent.
+    """
+    # Arrange
+    nmap_runner = MockToolRunner("NmapRunner", fail_on_first_run=True)
+    sudo_runner = MockToolRunner("SudoRunner")
+    nmap_adapter = MockToolAdapter(nmap_runner, nmap_tool)
+    sudo_tool = Tool(name="sudo", description="Sudo", install_info=InstallInfo(method="pkg", source="sudo"), run_command="sudo", is_installed=True)
+    sudo_adapter = MockToolAdapter(sudo_runner, sudo_tool)
+    tool_adapters = {"nmap": nmap_adapter, "sudo": sudo_adapter}
+
+    report_generators = [MockReportGenerator()]
+    error_analyst = MockErrorAnalystAgent()
+    error_fixer = MockErrorFixerAgent()
+
+    # Mock the fixer to return a new command
+    fixed_command = Command(tool_name="sudo", args=["nmap", "-p", "80", "localhost"], raw_command="nmap -p 80 localhost")
+    error_fixer.suggest_fix = AsyncMock(return_value=fixed_command)
+
+    config = Config(allow_system_install=True)
+    audit_logger = MockAuditLogger()
+    # Mock consent to approve the fix
+    consent_service = MockSecurityComplianceAgent(consent_to_give=True)
+    execution_history = MockExecutionHistory()
+    tool_installer = MockToolInstallerAgent()
+    security_advisor = MockSecurityAdvisorAgent()
+
+    orchestrator = OrchestratorAgent(
+        parser=RegexCommandParserAdapter(),
+        tool_adapters=tool_adapters,
+        report_generators=report_generators,
+        error_analyst=error_analyst,
+        error_fixer=error_fixer,
+        tool_installer=tool_installer,
+        security_advisor=security_advisor,
+        logger=MockLogger(),
+        config=config,
+        audit_logger=audit_logger,
+        consent_service=consent_service,
+        execution_history=execution_history
+    )
+
+    # Act
+    result = await orchestrator.execute("nmap -p 80 localhost")
+
+    # Assert
+    assert result.success is True
+    assert "Executed by SudoRunner" in result.output
+    assert nmap_runner.call_count == 1  # First attempt
+    assert sudo_runner.call_count == 1  # Second, fixed attempt
+    error_fixer.suggest_fix.assert_called_once()
