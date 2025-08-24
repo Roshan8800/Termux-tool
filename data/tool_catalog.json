@@ -71,9 +71,10 @@
             "method": "git",
             "source": "https://github.com/GreyDGL/PentestGPT.git",
             "path": "tools/pentestgpt",
-            "health_check": "python3 tools/pentestgpt/main.py --help"
+            "health_check": "pentestgpt --help",
+            "bin_name": "pentestgpt"
         },
-        "run_command": "python3 tools/pentestgpt/main.py",
+        "run_command": "pentestgpt",
         "adapter_class": null
     }
 ]
