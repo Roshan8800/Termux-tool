@@ -5,19 +5,15 @@ import google.generativeai as genai
 from termux_cyber_framework.core.domain.models import Command
 from termux_cyber_framework.core.use_cases.ports import CommandParserPort
 
-# Configure the Gemini API key
-# The user provided the API key in the prompt.
-# I will hardcode it for now, but a better solution would be to use environment variables.
-API_KEY = "AIzaSyB8B_5EXGahUCGiII5xAhqmX0YroSmvVek"
-genai.configure(api_key=API_KEY)
-
-
 class AIInterpreter(CommandParserPort):
     """
     A CommandParserPort implementation that uses an AI to parse commands.
     """
 
-    def __init__(self, tool_catalog_path: str):
+    def __init__(self, tool_catalog_path: str, api_key: str):
+        if not api_key:
+            raise ValueError("API key for AIInterpreter is required.")
+        genai.configure(api_key=api_key)
         self.tool_catalog = self._load_tool_catalog(tool_catalog_path)
         self.model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
@@ -30,9 +26,9 @@ class AIInterpreter(CommandParserPort):
         Parses the given text into a structured Command using the Gemini API.
         """
         prompt = self._build_prompt(text)
-        response = await self.model.generate_content_async(prompt)
-
         try:
+            response = await self.model.generate_content_async(prompt)
+
             # The response is expected to be a JSON string
             command_json = response.text.strip()
             # It's good practice to remove markdown code block delimiters
@@ -47,7 +43,7 @@ class AIInterpreter(CommandParserPort):
                 raw_command=text,
                 ai_interpretation=command_data
             )
-        except (json.JSONDecodeError, KeyError) as e:
+        except Exception as e:
             # Fallback to simple parsing if the AI fails
             print(f"AI parsing failed: {e}. Falling back to simple parsing.")
             parts = text.split()

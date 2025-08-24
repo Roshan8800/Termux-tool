@@ -23,7 +23,7 @@ def ai_interpreter(tmp_path, mock_generative_model):
     original_generative_model = ai_interpreter_module.genai.GenerativeModel
     ai_interpreter_module.genai.GenerativeModel = MagicMock(return_value=mock_generative_model)
 
-    interpreter = AIInterpreter(tool_catalog_path=str(tool_catalog_path))
+    interpreter = AIInterpreter(tool_catalog_path=str(tool_catalog_path), api_key="test_key")
 
     # Restore the original after the test
     yield interpreter

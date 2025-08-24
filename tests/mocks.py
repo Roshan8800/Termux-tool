@@ -20,12 +20,29 @@ class MockAIInterpreter(CommandParserPort):
             ai_interpretation={"tool": tool_name, "args": args}
         )
 
+    async def interpret(self, text: str) -> dict:
+        """Mocks the MasterAIInterpreter's interpret method."""
+        return {
+            "intent": "run_tool",
+            "parameters": {"natural_language_command": text}
+        }
+
 class MockAuditLogger(AuditLoggerPort):
     def __init__(self):
         self.events = []
 
     def append(self, event: dict) -> None:
         self.events.append(event)
+
+class MockInstallLogger:
+    def __init__(self, log_dir="logs"):
+        self.logs = {}
+
+    def log(self, tool_name: str, content: str):
+        if tool_name not in self.logs:
+            self.logs[tool_name] = []
+        if content:
+            self.logs[tool_name].append(content)
 
 from termux_cyber_framework.core.domain.models import ExecutionResult
 

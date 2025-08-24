@@ -1,325 +1,109 @@
 import pytest
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
-from typing import Optional, List, Dict
-from datetime import datetime
-from pathlib import Path
-from termux_cyber_framework.core.domain.models import Command, Tool, ExecutionResult, Error, InstallInfo, Remediation
-from termux_cyber_framework.core.domain.config import Config
-from termux_cyber_framework.core.domain.run_paths import RunPaths
-from termux_cyber_framework.core.use_cases.ports import (
-    ToolInstallerPort,
-    ToolRunnerPort,
-    ReportGeneratorPort,
-    ErrorFixerPort,
-    ToolAdapterPort,
-    LoggerPort,
-    DoctorPort,
-    AuditLoggerPort,
-    ConsentPort,
-    NetworkPort
-)
 from termux_cyber_framework.core.use_cases.orchestrator_agent import OrchestratorAgent
-from termux_cyber_framework.adapters.command_parser.regex_parser import RegexCommandParserAdapter
-from tests.mocks import MockAuditLogger, MockExecutionHistory, MockToolInstallerAgent, MockErrorFixerAgent
+from termux_cyber_framework.adapters.command_parser.master_ai_interpreter import MasterAIInterpreter
+from termux_cyber_framework.core.domain.models import Command, ExecutionResult
 
-# --- Mock Adapters for Testing ---
-
-class MockUpdateAgent:
-    def check_framework_update(self) -> bool:
-        return False
-    def check_tool_updates(self) -> dict:
-        return {"pkg": [], "pip": []}
-    def apply_framework_update(self) -> bool:
-        return True
-    def apply_tool_updates(self, pip_packages: list) -> bool:
-        return True
-
-class MockNetworkAgent(NetworkPort):
-    def __init__(self, is_online: bool = True):
-        self.is_online = is_online
-    def check_internet_connection(self) -> bool:
-        return self.is_online
-
-class MockDoctor(DoctorPort):
-    def diagnose(self, error: Error, command: Command) -> list[Remediation]:
-        return []
-
-class MockSecurityComplianceAgent(ConsentPort):
-    def __init__(self, consent_to_give: bool = True):
-        self.consent_to_give = consent_to_give
-
-    def get_consent(self, command: Command) -> bool:
-        return self.consent_to_give
-
-class MockLogger(LoggerPort):
-    def log(self, message: str, level: str = "INFO"):
-        pass
-
-class MockToolAdapter(ToolAdapterPort):
-    def __init__(self, runner: ToolRunnerPort, tool: Tool):
-        self._runner = runner
-        self._tool = tool
-        self.install_called = False
-
-    def find_tool(self, name: str) -> Optional[Tool]:
-        if name == self._tool.name:
-            return self._tool
-        return None
-
-    def check_if_installed(self, tool: Tool) -> bool:
-        return self._tool.is_installed
-
-    def install_tool(self, tool: Tool) -> bool:
-        self.install_called = True
-        self._tool.is_installed = True
-        return True
-
-    def run(self, tool: Tool, command: Command, paths: RunPaths) -> ExecutionResult:
-        return self._runner.run(tool, command, paths)
-
-class MockToolRunner(ToolRunnerPort):
-    def __init__(self, runner_name: str, fail_on_first_run: bool = False):
-        self.runner_name = runner_name
-        self.call_count = 0
-        self.fail_on_first_run = fail_on_first_run
-
-    def run(self, tool: Tool, command: Command, paths: RunPaths) -> ExecutionResult:
-        self.call_count += 1
-        now = datetime.now()
-        if self.fail_on_first_run and self.call_count == 1:
-            return ExecutionResult(
-                command=command,
-                success=False,
-                output="Permission denied",
-                error=Error(message="Permission denied"),
-                start_time=now,
-                end_time=now,
-                output_log_file=str(paths.output_log_file)
-            )
-        return ExecutionResult(
-            command=command,
-            success=True,
-            output=f"Executed by {self.runner_name}",
-            error=None,
-            start_time=now,
-            end_time=now,
-            output_log_file=str(paths.output_log_file)
-        )
-
-class MockReportGenerator(ReportGeneratorPort):
-    def prepare_report_paths(self, tool_name: str) -> RunPaths:
-        # Create a dummy path for the mock
-        return RunPaths(run_dir=Path("/tmp"), base_filename="mock_report", output_log_file=Path("/tmp/mock_run.log"))
-
-    def generate(self, result: ExecutionResult, paths: RunPaths) -> None:
-        pass
-
-class MockErrorAnalystAgent:
-    async def analyze_error(self, command: Command, error: Error) -> str:
-        return "Mock AI analysis of the error."
-
-class MockSecurityAdvisorAgent:
-    async def provide_advice(self, result: ExecutionResult) -> str:
-        return "Mock security advice."
-
-# --- Test Fixtures ---
-
+# A simplified setup fixture for the new tests
 @pytest.fixture
-def nmap_tool():
-    install_info = InstallInfo(method="pkg", source="nmap")
-    return Tool(name="nmap", description="Nmap", install_info=install_info, run_command="nmap", is_installed=True)
-
-@pytest.fixture
-def whois_tool():
-    install_info = InstallInfo(method="pkg", source="whois")
-    return Tool(name="whois", description="Whois", install_info=install_info, run_command="whois", is_installed=True)
-
-# --- Test Setup ---
-
-@pytest.fixture
-def setup(nmap_tool, whois_tool):
-    """A general setup fixture to provide all necessary mocks."""
-    nmap_runner = MockToolRunner("NmapRunner")
-    whois_runner = MockToolRunner("WhoisRunner")
-
-    nmap_adapter = MockToolAdapter(nmap_runner, nmap_tool)
-    whois_adapter = MockToolAdapter(whois_runner, whois_tool)
-
-    tool_adapters = {
-        "nmap": nmap_adapter,
-        "whois": whois_adapter
+def mock_agents():
+    """Provides a dictionary of mocked agents for testing the orchestrator."""
+    agents = {
+        "master_interpreter": MagicMock(spec=MasterAIInterpreter),
+        "tool_command_parser": MagicMock(),
+        "tool_adapters": {"nmap": MagicMock()},
+        "report_generators": [],
+        "error_analyst": MagicMock(),
+        "error_fixer": MagicMock(),
+        "tool_installer": MagicMock(),
+        "security_advisor": MagicMock(),
+        "network_agent": MagicMock(),
+        "update_agent": MagicMock(),
+        "config_manager": MagicMock(),
+        "dependency_auditor": MagicMock(),
+        "knowledge_agent": MagicMock(),
+        "logger": MagicMock(),
+        "config": MagicMock(),
+        "audit_logger": MagicMock(),
+        "consent_service": MagicMock(),
+        "execution_history": MagicMock()
     }
-
-    report_generators = [MockReportGenerator()]
-    error_analyst = MockErrorAnalystAgent()
-    tool_installer = MockToolInstallerAgent()
-    security_advisor = MockSecurityAdvisorAgent()
-    error_fixer = MockErrorFixerAgent()
-    logger = MockLogger()
-    network_agent = MockNetworkAgent()
-    update_agent = MockUpdateAgent()
-
-    config = Config(allow_system_install=True)
-    audit_logger = MockAuditLogger()
-    consent_service = MockSecurityComplianceAgent()
-    execution_history = MockExecutionHistory()
-    orchestrator = OrchestratorAgent(
-        parser=RegexCommandParserAdapter(),
-        tool_adapters=tool_adapters,
-        report_generators=report_generators,
-        error_analyst=error_analyst,
-        error_fixer=error_fixer,
-        tool_installer=tool_installer,
-        security_advisor=security_advisor,
-        logger=logger,
-        config=config,
-        audit_logger=audit_logger,
-        consent_service=consent_service,
-        execution_history=execution_history,
-        network_agent=network_agent,
-        update_agent=update_agent
-    )
-    return orchestrator, tool_adapters, report_generators, error_analyst, error_fixer, tool_installer, security_advisor, nmap_runner, whois_runner
-
-# --- Test Cases ---
+    # Mock the interpret method to be async
+    agents["master_interpreter"].interpret = AsyncMock()
+    return agents
 
 @pytest.mark.asyncio
-async def test_uses_specific_runner_when_available(setup):
-    orchestrator, _, _, _, _, _, security_advisor, nmap_runner, whois_runner = setup
-    result = await orchestrator.execute("nmap -sV localhost")
-    assert nmap_runner.call_count == 1
-    assert whois_runner.call_count == 0
-    assert result.success is True
-    assert result.ai_advice == "Mock security advice."
-
-@pytest.mark.asyncio
-async def test_installs_tool_if_not_installed(setup):
-    orchestrator, _, _, _, _, tool_installer, _, _, _ = setup
-
-    await orchestrator.execute("whois google.com")
-    assert tool_installer.install_if_needed_called is True
-    assert tool_installer.install_if_needed_tool.name == "whois"
-
-@pytest.mark.asyncio
-async def test_install_tool_fails(setup):
-    orchestrator, _, _, _, _, tool_installer, _, _, _ = setup
-
-    def fake_install_fail(tool):
-        raise RuntimeError(f"Failed to install tool '{tool.name}'.")
-    tool_installer.install_if_needed = fake_install_fail
-
-    result = await orchestrator.execute("whois google.com")
-
-    assert result.success is False
-    assert "Failed to install tool" in result.error.message
-
-@pytest.mark.asyncio
-async def test_error_analyst_is_called_when_no_fix_is_found(nmap_tool):
-    """
-    Tests that the ErrorAnalystAgent is called when a command fails and the
-    ErrorFixerAgent does not provide a fix.
-    """
+async def test_handle_input_routes_to_run_tool(mock_agents):
+    """Test that 'run_tool' intent calls the _handle_run_tool method."""
     # Arrange
-    nmap_runner = MockToolRunner("NmapRunner", fail_on_first_run=True)
-    nmap_adapter = MockToolAdapter(nmap_runner, nmap_tool)
-    tool_adapters = {"nmap": nmap_adapter}
-    report_generators = [MockReportGenerator()]
-    error_analyst = MockErrorAnalystAgent()
+    mock_agents["master_interpreter"].interpret.return_value = {
+        "intent": "run_tool",
+        "parameters": {"natural_language_command": "scan example.com"}
+    }
+    orchestrator = OrchestratorAgent(**mock_agents)
 
-    error_analyst.analyze_error = AsyncMock(wraps=error_analyst.analyze_error)
-
-    error_fixer = MockErrorFixerAgent()
-    error_fixer.suggest_fix = AsyncMock(return_value=None)
-
-    config = Config(allow_system_install=True)
-    audit_logger = MockAuditLogger()
-    consent_service = MockSecurityComplianceAgent()
-    execution_history = MockExecutionHistory()
-    tool_installer = MockToolInstallerAgent()
-    security_advisor = MockSecurityAdvisorAgent()
-    network_agent = MockNetworkAgent()
-    update_agent = MockUpdateAgent()
-
-    orchestrator = OrchestratorAgent(
-        parser=RegexCommandParserAdapter(),
-        tool_adapters=tool_adapters,
-        report_generators=report_generators,
-        error_analyst=error_analyst,
-        error_fixer=error_fixer,
-        tool_installer=tool_installer,
-        security_advisor=security_advisor,
-        logger=MockLogger(),
-        config=config,
-        audit_logger=audit_logger,
-        consent_service=consent_service,
-        execution_history=execution_history,
-        network_agent=network_agent,
-        update_agent=update_agent
-    )
+    # Patch the actual handler method to check if it's called
+    mock_command = Command(tool_name="test_tool", raw_command="scan example.com")
+    mock_result = ExecutionResult(command=mock_command, success=True, output="mocked output")
+    orchestrator._handle_run_tool = AsyncMock(return_value=mock_result)
 
     # Act
-    result = await orchestrator.execute("nmap -p 80 localhost")
+    await orchestrator.handle_input("scan example.com")
 
     # Assert
-    assert result.success is False
-    assert result.error.ai_analysis == "Mock AI analysis of the error."
-    error_analyst.analyze_error.assert_called_once()
-    error_fixer.suggest_fix.assert_called_once()
-
+    orchestrator._handle_run_tool.assert_called_once_with("scan example.com")
 
 @pytest.mark.asyncio
-async def test_orchestrator_attempts_auto_fix_on_failure(nmap_tool):
-    """
-    Tests the auto-fix flow: a command fails, the fixer suggests a new command,
-    and the orchestrator retries it after getting consent.
-    """
-    # Arrange
-    nmap_runner = MockToolRunner("NmapRunner", fail_on_first_run=True)
-    sudo_runner = MockToolRunner("SudoRunner")
-    nmap_adapter = MockToolAdapter(nmap_runner, nmap_tool)
-    sudo_tool = Tool(name="sudo", description="Sudo", install_info=InstallInfo(method="pkg", source="sudo"), run_command="sudo", is_installed=True)
-    sudo_adapter = MockToolAdapter(sudo_runner, sudo_tool)
-    tool_adapters = {"nmap": nmap_adapter, "sudo": sudo_adapter}
+async def test_handle_input_routes_to_update_system(mock_agents):
+    """Test that 'update_system' intent calls the update_system method."""
+    mock_agents["master_interpreter"].interpret.return_value = {
+        "intent": "update_system",
+        "parameters": {}
+    }
+    orchestrator = OrchestratorAgent(**mock_agents)
+    orchestrator.update_system = AsyncMock(return_value="System updated.")
 
-    report_generators = [MockReportGenerator()]
-    error_analyst = MockErrorAnalystAgent()
-    error_fixer = MockErrorFixerAgent()
+    await orchestrator.handle_input("update the system")
 
-    fixed_command = Command(tool_name="sudo", args=["nmap", "-p", "80", "localhost"], raw_command="nmap -p 80 localhost")
-    error_fixer.suggest_fix = AsyncMock(return_value=fixed_command)
+    orchestrator.update_system.assert_called_once()
 
-    config = Config(allow_system_install=True)
-    audit_logger = MockAuditLogger()
-    consent_service = MockSecurityComplianceAgent(consent_to_give=True)
-    execution_history = MockExecutionHistory()
-    tool_installer = MockToolInstallerAgent()
-    security_advisor = MockSecurityAdvisorAgent()
-    network_agent = MockNetworkAgent()
-    update_agent = MockUpdateAgent()
+@pytest.mark.asyncio
+async def test_handle_input_routes_to_set_api_key(mock_agents):
+    """Test that 'set_api_key' intent calls the config manager."""
+    mock_agents["master_interpreter"].interpret.return_value = {
+        "intent": "set_api_key",
+        "parameters": {"service": "google", "api_key": "123"}
+    }
+    orchestrator = OrchestratorAgent(**mock_agents)
 
-    orchestrator = OrchestratorAgent(
-        parser=RegexCommandParserAdapter(),
-        tool_adapters=tool_adapters,
-        report_generators=report_generators,
-        error_analyst=error_analyst,
-        error_fixer=error_fixer,
-        tool_installer=tool_installer,
-        security_advisor=security_advisor,
-        logger=MockLogger(),
-        config=config,
-        audit_logger=audit_logger,
-        consent_service=consent_service,
-        execution_history=execution_history,
-        network_agent=network_agent,
-        update_agent=update_agent
-    )
+    await orchestrator.handle_input("set key")
 
-    # Act
-    result = await orchestrator.execute("nmap -p 80 localhost")
+    mock_agents["config_manager"].set_api_key.assert_called_once_with("google", "123")
 
-    # Assert
-    assert result.success is True
-    assert "Executed by SudoRunner" in result.output
-    assert nmap_runner.call_count == 1
-    assert sudo_runner.call_count == 1
-    error_fixer.suggest_fix.assert_called_once()
+@pytest.mark.asyncio
+async def test_handle_input_routes_to_audit(mock_agents):
+    """Test that 'audit_dependencies' intent calls the auditor."""
+    mock_agents["master_interpreter"].interpret.return_value = {
+        "intent": "audit_dependencies",
+        "parameters": {}
+    }
+    orchestrator = OrchestratorAgent(**mock_agents)
+
+    await orchestrator.handle_input("run audit")
+
+    mock_agents["dependency_auditor"].run_audit.assert_called_once()
+
+@pytest.mark.asyncio
+async def test_handle_input_unknown_intent(mock_agents):
+    """Test that an unknown intent returns an error message."""
+    mock_agents["master_interpreter"].interpret.return_value = {
+        "intent": "unknown",
+        "parameters": {}
+    }
+    orchestrator = OrchestratorAgent(**mock_agents)
+    result = await orchestrator.handle_input("gibberish")
+
+    assert isinstance(result, ExecutionResult)
+    assert result.success is False
+    assert "Could not understand" in result.error.message

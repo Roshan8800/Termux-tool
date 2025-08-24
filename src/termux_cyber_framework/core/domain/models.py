@@ -50,10 +50,10 @@ class ExecutionResult(BaseModel):
     """
     command: Command = Field(..., description="The command that was executed.")
     success: bool = Field(..., description="Whether the command executed successfully.")
-    output: str = Field(..., description="The stdout from the command execution.")
+    output: Optional[str] = Field(None, description="The stdout from the command execution.")
     error: Optional[Error] = Field(None, description="Details of the error if the command failed.")
-    start_time: datetime = Field(..., description="The timestamp when the command started.")
-    end_time: datetime = Field(..., description="The timestamp when the command ended.")
+    start_time: datetime = Field(default_factory=datetime.now, description="The timestamp when the command started.")
+    end_time: datetime = Field(default_factory=datetime.now, description="The timestamp when the command ended.")
     pid: Optional[int] = Field(None, description="The process ID of the command.")
     paths: Optional[RunPaths] = Field(None, description="The paths used for report and log files.")
     output_log_file: Optional[str] = Field(None, description="The path to the log file containing the command's output.")

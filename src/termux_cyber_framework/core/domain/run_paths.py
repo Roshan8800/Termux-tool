@@ -1,6 +1,6 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 class RunPaths(BaseModel):
     """
@@ -9,3 +9,4 @@ class RunPaths(BaseModel):
     run_dir: Path
     base_filename: str
     output_log_file: Optional[Path] = None
+    report_files: List[str] = Field(default_factory=list)
