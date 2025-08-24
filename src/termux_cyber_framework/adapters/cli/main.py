@@ -14,6 +14,8 @@ from termux_cyber_framework.adapters.command_parser.master_ai_interpreter import
 from termux_cyber_framework.core.plugin_manager import PluginManager
 from termux_cyber_framework.adapters.report_generator.txt_reporter import TxtReporter
 from termux_cyber_framework.adapters.report_generator.json_reporter import JsonReporter
+from termux_cyber_framework.adapters.report_generator.markdown_reporter import MarkdownReporter
+from termux_cyber_framework.adapters.report_generator.pdf_reporter import PdfReporter
 from termux_cyber_framework.adapters.persistence.execution_history import ExecutionHistory
 from termux_cyber_framework.adapters.audit_logger.file_audit_logger import FileAuditLogger
 from termux_cyber_framework.agents.logger_agent import LoggerAgent
@@ -83,7 +85,12 @@ def build_agent_system(
     # Plugin and Reporting
     plugin_manager = PluginManager(config=config, command_runner=command_runner, logger=logger, installers=installers)
     tool_adapters = plugin_manager.load_plugins()
-    report_generators = [TxtReporter(file_manager=file_manager), JsonReporter(file_manager=file_manager)]
+    report_generators = [
+        TxtReporter(file_manager=file_manager),
+        JsonReporter(file_manager=file_manager),
+        MarkdownReporter(file_manager=file_manager),
+        PdfReporter(file_manager=file_manager)
+    ]
 
     # Foundational Agents
     master_interpreter = MasterAIInterpreter(api_key=api_key)
