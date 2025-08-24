@@ -2,34 +2,41 @@
 
 **Created by Roshan**
 
-A professional, AI-powered cybersecurity framework designed for simplicity and extensibility. Run complex tools with simple, natural language commands.
+An advanced, AI-driven cybersecurity framework designed for simplicity, automation, and extensibility. Run complex penetration testing workflows with simple, natural language commands.
 
-![CLI Screenshot](https://i.imgur.com/your-screenshot.png) <!-- Placeholder for a real screenshot -->
+---
 
 ## Overview
 
-This framework allows users to run a variety of cybersecurity tools using natural language commands. It leverages the Google Gemini API to interpret your intent, select the appropriate tool, and execute it. It's designed to be extensible, secure, and user-friendly, with a focus on clear reporting and user consent for potentially dangerous operations.
+This framework allows users to run a variety of cybersecurity tools and complex workflows using natural language. It leverages the Google Gemini API to interpret your intent and orchestrates a suite of specialized agents to perform tasks, from running simple commands to fully automating the setup and execution of sophisticated tools like PentestGPT with local LLMs.
+
+The system is designed with a robust, agent-based architecture that is secure, user-friendly, and easily extensible.
 
 ## Key Features
 
-- **AI-Powered Command Interpretation:** Simply tell the framework what you want to do in plain English (e.g., `"scan example.com for open ports"`).
-- **Cross-Platform Support:** Works on various Debian-based systems, including **Termux**, **Kali Linux**, and **Parrot OS**.
-- **Automated Tool Installation:** The framework automatically installs the necessary tools on-demand using the appropriate package manager (`apt-get` or `pkg`).
-- **Enhanced Reporting:** Generates detailed reports for every operation in both `.txt` and `.json` formats, including metadata like execution time, AI interpretation, and user consent.
-- **User Consent Flow:** For potentially dangerous operations (e.g., `sqlmap`), the framework will prompt for explicit user consent before proceeding.
-- **Modular Architecture:** Easily extend the framework by adding new tools to the tool catalog.
+- **Natural Language Command Interface:** The primary way to interact is through the `run` command or the interactive `shell`, which accept plain English commands.
+- **Agent-Based Architecture:** A powerful multi-agent system, led by a central `OrchestratorAgent`, delegates tasks to specialized agents for tool installation, execution, error analysis, and more.
+- **Automated PentestGPT & Ollama Integration:**
+    - **Zero-Setup Analysis:** Run a command like `"start a pentest session"` and the framework will automatically handle the entire setup.
+    - **System-Aware:** Checks for available storage before downloading large language models.
+    - **Dynamic Model Selection:** Intelligently chooses the best local LLM (e.g., Llama3, Phi3) that fits your device's storage capacity.
+    - **Fully Automated:** Installs Ollama, PentestGPT, and all dependencies automatically.
+    - **Local & Private:** Runs the analysis on your device using a local Ollama server, ensuring privacy.
+- **Automated Tool Installation:** The framework automatically installs any required tool on-demand using the appropriate method (`apt-get`, `pkg`, `pip`, `git`, or `shell` scripts).
+- **Multi-Format Reporting:** Generates detailed reports for every operation in four formats: **TXT**, **JSON**, **Markdown**, and **PDF**.
+- **User Consent Flow:** For potentially dangerous operations, the framework prompts for explicit user consent before proceeding.
 
 ---
 
 ## Installation
 
-Getting the framework up and running is simple, thanks to the automated setup script.
+Getting the framework up and running is simple.
 
 ### Prerequisites
 
+- **Python 3.11+**
+- **Poetry**: For managing Python dependencies.
 - **Git**
-- An active internet connection.
-- A supported operating system (Termux, Kali Linux, Parrot OS).
 
 ### Automated Installation
 
@@ -40,86 +47,64 @@ Getting the framework up and running is simple, thanks to the automated setup sc
     ```
 
 2.  **Run the Setup Script**
-    This script will automatically detect your OS, install necessary system packages, and then install all the required Python libraries.
+    This script will automatically detect your OS (Termux, Kali, etc.), install necessary system packages (like `build-essential`), and then use `poetry` to install all required Python libraries.
     ```bash
     bash install.sh
     ```
 
-That's it! The script will handle everything for you. On systems like Kali or Parrot, it may ask for your `sudo` password to install system packages.
+That's it! The script will handle everything for you.
 
 ---
 
 ## How to Use
 
-The framework is designed to be intuitive. The recommended way to run the framework is using the provided startup script, which includes crash detection and auto-restart for a more stable experience.
+The framework is designed to be intuitive. The primary entry points are the `run` and `shell` commands, which are best invoked through the `poetry run` command to ensure you're using the correct environment.
 
-### Recommended: Interactive Shell with Monitoring
+### Interactive Shell (Recommended)
 
-To launch the framework's interactive shell, simply run the startup script:
+To launch the interactive shell for a full session:
 ```bash
-./start_framework.sh
+poetry run tcf shell
 ```
 This will drop you into the `cyber-ai>` prompt, where you can enter natural language commands directly.
 
 **Meta-Commands:**
-- `:help` - Shows available commands.
+- `:help` - Shows a help message.
 - `:exit` - Exits the shell.
 
-### Alternative: Direct Execution (Without Monitoring)
+### Direct Command Execution
 
-If you prefer to run the framework directly without the monitoring script (e.g., for development or debugging), you can use the following commands.
-
-**1. Interactive Shell:**
-```bash
-python3 -m src.termux_cyber_framework.adapters.cli.main shell
-```
-
-**2. Direct Command Execution:**
 To run a single command without entering the shell, use the `run` command:
 ```bash
-python3 -m src.termux_cyber_framework.adapters.cli.main run "your natural language command"
+poetry run tcf run "your natural language command here"
 ```
 
 ### Examples
 
-Here are a few examples of how you can use the framework:
-
-**1. Scan for open ports on a domain:**
+**1. Run a simple tool:**
 ```bash
-python -m src.termux_cyber_framework.main run "scan example.com for open ports with nmap"
+poetry run tcf run "scan example.com for open ports with nmap"
 ```
 
-**2. Check a website for SQL injection vulnerabilities:**
+**2. Get information about a tool:**
 ```bash
-python -m src.termux_cyber_framework.main run "check example.com for SQL injection"
+poetry run tcf run "what is sqlmap?"
 ```
-*(This is a dangerous command and will trigger a consent prompt.)*
 
-**3. Get WHOIS information for a domain:**
+**3. Start an automated PentestGPT session:**
 ```bash
-python -m src.termux_cyber_framework.main run "whois google.com"
+poetry run tcf run "run a pentest analysis"
 ```
+The framework will handle checking storage, selecting a model, installing everything, and launching the interactive PentestGPT session for you.
 
 ### Dry-Run Mode
 
-If you want to see what the AI will interpret your command as without actually executing it, use the `--dry-run` flag. This is great for testing or learning how the framework works.
+If you want to see what the AI will interpret your command as without actually executing it, use the `--dry-run` flag.
 
 ```bash
-python -m src.termux_cyber_framework.main run "scan example.com for open ports" --dry-run
+poetry run tcf run "scan example.com" --dry-run
 ```
 
 ### Understanding the Output
 
-After each command, you will receive a summary report in your console. Detailed reports in both `.txt` and `.json` format will be saved in the `reports/` directory, organized by date and tool name.
-
----
-
-## Architecture
-
-The framework is built using a hexagonal architecture, with a core domain that is independent of the adapters. This keeps the core logic clean and makes the framework easy to maintain and extend.
-
-- **Core**: Contains the domain models, use cases, and ports.
-- **Adapters**: Implement the ports and provide the concrete implementations for the framework's features (e.g., AI Interpreter, Reporters, Tool Installers).
-- **CLI**: The command-line interface, built with `Typer` and `rich`.
-
-The `main.py` file in the `src/termux_cyber_framework/adapters/cli` directory acts as the **Composition Root**, where all the adapters are instantiated and wired together.
+After each command, you will receive a summary report in your console. Detailed reports in **TXT, JSON, Markdown, and PDF** format will be saved in the `reports/` directory, organized by date and tool name.

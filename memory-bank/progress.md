@@ -16,9 +16,22 @@
 - **Professional Branding**: Added "Roshan" branding, a welcome logo, and a legal disclaimer to the UI.
 - **Interactive Shell**: Implemented a `shell` command for a REPL-like interactive experience with meta-commands.
 
+### M3: Advanced Tool Integration & Reporting (Completed)
+- **Automated PentestGPT/Ollama Integration**:
+    - Created `SystemResourceAgent` to check available storage before installation.
+    - Implemented `OllamaAdapter` to manage the Ollama service (start, stop, pull models).
+    - Created `PentestGptAgent` to orchestrate the entire setup and execution flow.
+    - Implemented dynamic model selection based on available storage.
+    - Enhanced `GitInstallerAdapter` to automatically handle `requirements.txt`.
+    - Integrated the entire feature as an internal service callable by the `OrchestratorAgent`.
+- **Extended Reporting System**:
+    - Added `MarkdownReporter` for generating `.md` reports.
+    - Added `PdfReporter` for generating `.pdf` reports, including `fpdf2` as a new dependency.
+- **Enhanced Installer Capabilities**:
+    - Created a `ShellInstallerAdapter` to allow installation from shell scripts (e.g., Ollama's `curl | sh` installer).
+
 ## Outstanding Tasks & Issues
 
-- **API Key Management**: The Gemini API key is currently hardcoded. This needs to be moved to a secure environment variable or configuration file.
 - **Expand Tool Catalog**: The request to add "30+ tools" is outstanding. New tools need to be added one by one.
 - **Advanced Shell Features**: The interactive shell is basic. Features from the brief like autocomplete, `:tools`, and `:reports` commands are not yet implemented.
 - **Dynamic Plugin Registration**: The current plugin system relies on a central `tool_catalog.json`. The original brief mentioned a more dynamic system where plugins can self-register. This has not been implemented.
@@ -31,3 +44,4 @@
 - **`PluginManager` not loading generic tools**: Fixed by refactoring the `PluginManager` to be catalog-driven and use a `GenericToolAdapter`.
 - **Report timestamp mismatch**: Fixed by refactoring `RunPaths` and the reporting logic to use a single, consistent timestamp.
 - **Numerous `TypeError` and `ImportError` issues during refactoring**: All resolved and verified with a full test suite run.
+- **API Key Management**: The Gemini API key is no longer hardcoded and is managed through `ConfigManagerAgent`.
