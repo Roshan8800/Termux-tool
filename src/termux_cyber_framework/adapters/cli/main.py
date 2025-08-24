@@ -29,6 +29,7 @@ from termux_cyber_framework.agents.knowledge_agent import KnowledgeAgent
 from termux_cyber_framework.adapters.tool_installer.git_installer import GitInstallerAdapter
 from termux_cyber_framework.adapters.tool_installer.pip_installer import PipInstallerAdapter
 from termux_cyber_framework.adapters.tool_installer.pkg_installer import PkgInstallerAdapter
+from termux_cyber_framework.adapters.tool_installer.shell_installer import ShellInstallerAdapter
 from termux_cyber_framework.adapters.logger.install_logger import InstallLogger
 from termux_cyber_framework.adapters.cli.view import display_welcome, display_execution_result, display_error
 from rich.console import Console
@@ -67,7 +68,8 @@ def build_agent_system(
     installers = {
         "git": GitInstallerAdapter(command_runner, install_logger),
         "pip": PipInstallerAdapter(command_runner, install_logger),
-        "pkg": PkgInstallerAdapter(command_runner, install_logger)
+        "pkg": PkgInstallerAdapter(command_runner, install_logger),
+        "shell": ShellInstallerAdapter(command_runner, install_logger)
     }
     tool_installer = ToolInstallerAgent(installers=installers, logger=logger, config=config)
     plugin_manager = PluginManager(config=config, command_runner=command_runner, logger=logger, installers=installers)

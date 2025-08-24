@@ -1,0 +1,20 @@
+{
+    "recommended_models": [
+        {
+            "name": "phi3:mini",
+            "size_gb": 3.8
+        },
+        {
+            "name": "gemma:2b",
+            "size_gb": 2.5
+        },
+        {
+            "name": "llama3:8b",
+            "size_gb": 4.7
+        },
+        {
+            "name": "codegemma:7b",
+            "size_gb": 4.7
+        }
+    ]
+}

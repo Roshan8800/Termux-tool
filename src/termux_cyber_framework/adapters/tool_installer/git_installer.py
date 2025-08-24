@@ -1,5 +1,6 @@
 import subprocess
 import os
+import sys
 from termux_cyber_framework.core.domain.models import Tool
 from termux_cyber_framework.core.domain.config import Config
 from termux_cyber_framework.core.use_cases.ports import InstallerStrategyPort
@@ -75,6 +76,30 @@ class GitInstallerAdapter(InstallerStrategyPort):
             )
             self._install_logger.log(tool.name, process.stdout)
             self._install_logger.log(tool.name, process.stderr)
+
+            # After successful clone, check for requirements.txt
+            requirements_path = os.path.join(clone_path, "requirements.txt")
+            if os.path.exists(requirements_path):
+                print(f"[*] Found requirements.txt. Installing Python dependencies for '{tool.name}'...")
+                self._install_logger.log(tool.name, "Found requirements.txt, installing dependencies.")
+
+                pip_command = [sys.executable, "-m", "pip", "install", "-r", requirements_path]
+                try:
+                    pip_process = self._command_runner.run(
+                        pip_command,
+                        check=True,
+                        capture_output=True,
+                        text=True
+                    )
+                    self._install_logger.log(tool.name, "Pip dependencies installed successfully.")
+                    self._install_logger.log(tool.name, pip_process.stdout)
+                except subprocess.CalledProcessError as pip_e:
+                    error_msg = f"Failed to install pip dependencies for '{tool.name}'."
+                    self._install_logger.log(tool.name, error_msg)
+                    self._install_logger.log(tool.name, pip_e.stderr)
+                    print(f"[-] {error_msg}")
+                    return False
+
             return process.returncode == 0
         except subprocess.CalledProcessError as e:
             self._install_logger.log(tool.name, e.stdout)

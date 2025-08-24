@@ -52,5 +52,28 @@
         },
         "run_command": "ping",
         "adapter_class": null
+    },
+    {
+        "name": "ollama",
+        "description": "A service for running large language models locally.",
+        "install_info": {
+            "method": "shell",
+            "source": "curl -fsSL https://ollama.com/install.sh | sh",
+            "bin_name": "ollama"
+        },
+        "run_command": "ollama",
+        "adapter_class": null
+    },
+    {
+        "name": "pentestgpt",
+        "description": "A penetration testing tool powered by GPT models.",
+        "install_info": {
+            "method": "git",
+            "source": "https://github.com/GreyDGL/PentestGPT.git",
+            "path": "tools/pentestgpt",
+            "health_check": "python3 tools/pentestgpt/main.py --help"
+        },
+        "run_command": "python3 tools/pentestgpt/main.py",
+        "adapter_class": null
     }
 ]

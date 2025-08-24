@@ -1,5 +1,6 @@
 import pytest
 import subprocess
+import sys
 from termux_cyber_framework.adapters.tool_installer.git_installer import GitInstallerAdapter
 from termux_cyber_framework.core.domain.models import Tool, InstallInfo
 from termux_cyber_framework.core.domain.config import Config
@@ -49,6 +50,36 @@ def test_git_install_failure(tmp_path, git_tool, config):
 
     # Assert
     assert result is False
+
+def test_git_install_with_requirements_txt_success(tmp_path, git_tool, config):
+    # Arrange
+    clone_path = tmp_path / git_tool.install_info.path
+    # We need to create the directory that git clone would have created
+    clone_path.mkdir(parents=True)
+
+    # Create a fake requirements.txt file
+    (clone_path / "requirements.txt").write_text("requests==2.25.1")
+
+    git_tool.install_info.path = str(clone_path)
+
+    # Mock the commands
+    git_command = f"git clone {git_tool.install_info.source} {clone_path}"
+    pip_command = f"{sys.executable} -m pip install -r {clone_path / 'requirements.txt'}"
+
+    mock_runner = MockCommandRunner({
+        git_command: {"returncode": 0},
+        pip_command: {"returncode": 0}
+    })
+
+    installer = GitInstallerAdapter(mock_runner, InstallLogger(log_dir=str(tmp_path)))
+
+    # Act
+    result = installer.install(git_tool, config)
+
+    # Assert
+    assert result is True
+    assert mock_runner.call_count == 2
+    assert pip_command in mock_runner.mock_results # A bit of a hacky way to check it was called
 
 def test_is_installed_success(tmp_path, git_tool):
     # Arrange
