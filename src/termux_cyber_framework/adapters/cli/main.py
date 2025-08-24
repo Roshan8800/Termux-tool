@@ -2,6 +2,7 @@ import asyncio
 import typer
 import os
 import sys
+import json
 from typing import Optional, Dict, Any
 
 from termux_cyber_framework.core.use_cases.orchestrator_agent import OrchestratorAgent
@@ -26,6 +27,9 @@ from termux_cyber_framework.agents.update_agent import UpdateAgent
 from termux_cyber_framework.agents.file_manager_agent import FileManagerAgent
 from termux_cyber_framework.agents.dependency_auditor_agent import DependencyAuditorAgent
 from termux_cyber_framework.agents.knowledge_agent import KnowledgeAgent
+from termux_cyber_framework.agents.system_resource_agent import SystemResourceAgent
+from termux_cyber_framework.agents.pentestgpt_agent import PentestGptAgent
+from termux_cyber_framework.adapters.ollama_adapter import OllamaAdapter
 from termux_cyber_framework.adapters.tool_installer.git_installer import GitInstallerAdapter
 from termux_cyber_framework.adapters.tool_installer.pip_installer import PipInstallerAdapter
 from termux_cyber_framework.adapters.tool_installer.pkg_installer import PkgInstallerAdapter
@@ -44,6 +48,7 @@ def build_agent_system(
     """
     Composition Root: Constructs and wires all agents and components.
     """
+    # Foundational components
     config = config or Config()
     logger = LoggerAgent()
     file_manager = FileManagerAgent(logger=logger)
@@ -52,18 +57,20 @@ def build_agent_system(
     execution_history = ExecutionHistory()
     audit_logger = FileAuditLogger(file_manager=file_manager)
 
+    # Paths and Configs
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
     tool_catalog_path = os.path.join(project_root, "data", "tool_catalog.json")
+    llm_models_config_path = os.path.join(project_root, "config", "llm_models.json")
     config_path = os.path.join(project_root, "config", "config.json")
+
+    with open(tool_catalog_path, 'r') as f:
+        tool_catalog = json.load(f)
 
     config_manager = ConfigManagerAgent(file_manager=file_manager, config_path=config_path)
     api_key = config_manager.get_api_key("google_gemini") or os.getenv("GOOGLE_API_KEY")
+    if not api_key: api_key = "dummy_key_for_testing"
 
-    # For testing purposes, if no key is found, use a dummy key to avoid crashing on import
-    if not api_key:
-        api_key = "dummy_key_for_testing"
-
-
+    # Installers
     install_logger = InstallLogger()
     installers = {
         "git": GitInstallerAdapter(command_runner, install_logger),
@@ -72,24 +79,39 @@ def build_agent_system(
         "shell": ShellInstallerAdapter(command_runner, install_logger)
     }
     tool_installer = ToolInstallerAgent(installers=installers, logger=logger, config=config)
+
+    # Plugin and Reporting
     plugin_manager = PluginManager(config=config, command_runner=command_runner, logger=logger, installers=installers)
     tool_adapters = plugin_manager.load_plugins()
+    report_generators = [TxtReporter(file_manager=file_manager), JsonReporter(file_manager=file_manager)]
 
-    report_generators = [
-        TxtReporter(file_manager=file_manager),
-        JsonReporter(file_manager=file_manager)
-    ]
-
+    # Foundational Agents
     master_interpreter = MasterAIInterpreter(api_key=api_key)
     tool_command_parser = AIInterpreter(tool_catalog_path=tool_catalog_path, api_key=api_key)
     knowledge_agent = KnowledgeAgent(api_key=api_key, file_manager=file_manager, logger=logger, tool_catalog_path=tool_catalog_path)
+    network_agent = NetworkAgent(logger=logger)
+    dependency_auditor = DependencyAuditorAgent(logger=logger)
+    system_resource_agent = SystemResourceAgent(command_runner=command_runner)
+
+    # Feature-specific Agents (Ollama/PentestGPT)
+    ollama_adapter = OllamaAdapter(command_runner=command_runner)
+    pentestgpt_agent = PentestGptAgent(
+        console=console,
+        system_resource_agent=system_resource_agent,
+        tool_installer_agent=tool_installer,
+        ollama_adapter=ollama_adapter,
+        command_runner=command_runner,
+        tool_catalog=tool_catalog,
+        llm_models_config_path=llm_models_config_path
+    )
+
+    # High-level Agents
     error_analyst = ErrorAnalystAgent(api_key=api_key, knowledge_agent=knowledge_agent)
     error_fixer = ErrorFixerAgent(api_key=api_key)
     security_advisor = SecurityAdvisorAgent(api_key=api_key)
-    network_agent = NetworkAgent(logger=logger)
     update_agent = UpdateAgent(logger=logger, audit_logger=audit_logger)
-    dependency_auditor = DependencyAuditorAgent(logger=logger)
 
+    # The Brain
     orchestrator = OrchestratorAgent(
         master_interpreter=master_interpreter,
         tool_command_parser=tool_command_parser,
@@ -104,6 +126,7 @@ def build_agent_system(
         config_manager=config_manager,
         dependency_auditor=dependency_auditor,
         knowledge_agent=knowledge_agent,
+        pentestgpt_agent=pentestgpt_agent,
         logger=logger,
         config=config,
         audit_logger=audit_logger,
@@ -113,63 +136,39 @@ def build_agent_system(
 
     return {"orchestrator": orchestrator}
 
-# Lazy initialization of agents
+# ... (rest of the file is unchanged) ...
 _agents = None
-
 def get_orchestrator():
-    """Lazily builds and returns the orchestrator agent."""
     global _agents
-    if _agents is None:
-        _agents = build_agent_system()
+    if _agents is None: _agents = build_agent_system()
     return _agents["orchestrator"]
 
-
 @app.command()
-def run(
-    command: str = typer.Argument(..., help="The command to run in natural language (e.g., 'scan localhost', 'update system', 'what is nmap?')."),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Simulate the command without executing it.")
-):
-    """
-    The primary command to interact with the framework using natural language.
-    """
+def run(command: str = typer.Argument(..., help="The command to run in natural language."), dry_run: bool = typer.Option(False, "--dry-run")):
     orchestrator = get_orchestrator()
     orchestrator.config.dry_run = dry_run
     try:
         result = asyncio.run(orchestrator.handle_input(command))
-
-        if hasattr(result, 'success'):
-            display_execution_result(result)
-        else:
-            console.print(Panel(str(result), title="[bold green]Response[/bold green]", expand=False))
-
+        if hasattr(result, 'success'): display_execution_result(result)
+        else: console.print(Panel(str(result), title="[bold green]Response[/bold green]", expand=False))
     except Exception as e:
         display_error(f"An unexpected error occurred in the CLI: {e}")
 
 @app.command()
 def shell():
-    """
-    Launches an interactive shell for the framework.
-    """
     display_welcome()
     orchestrator = get_orchestrator()
     while True:
         try:
             command_str = console.input("[bold cyan]cyber-ai>[/bold cyan] ")
-            if command_str.lower() in [":exit", "exit"]:
-                break
+            if command_str.lower() in [":exit", "exit"]: break
             if command_str.lower() in [":help", "help"]:
-                console.print("This shell accepts natural language commands. Try things like 'scan example.com', 'update the system', or 'what is SQL injection?'. Type ':exit' to quit.")
+                console.print("This shell accepts natural language commands. Try 'scan example.com', 'update system', 'start pentest session' or 'what is SQL injection?'. Type ':exit' to quit.")
                 continue
-            if not command_str.strip():
-                continue
-
+            if not command_str.strip(): continue
             result = asyncio.run(orchestrator.handle_input(command_str))
-
-            if hasattr(result, 'success'):
-                 display_execution_result(result)
-            else:
-                 console.print(Panel(str(result), title="[bold green]Response[/bold green]", expand=False))
-
+            if hasattr(result, 'success'): display_execution_result(result)
+            else: console.print(Panel(str(result), title="[bold green]Response[/bold green]", expand=False))
         except KeyboardInterrupt:
             console.print("\nExiting shell.")
             break
@@ -178,7 +177,6 @@ def shell():
 
 def main():
     if len(sys.argv) == 1:
-        # If no command is given, enter the interactive shell
         shell()
         return
     app()

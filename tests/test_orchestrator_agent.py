@@ -23,6 +23,7 @@ def mock_agents():
         "config_manager": MagicMock(),
         "dependency_auditor": MagicMock(),
         "knowledge_agent": MagicMock(),
+        "pentestgpt_agent": MagicMock(),
         "logger": MagicMock(),
         "config": MagicMock(),
         "audit_logger": MagicMock(),
@@ -107,3 +108,17 @@ async def test_handle_input_unknown_intent(mock_agents):
     assert isinstance(result, ExecutionResult)
     assert result.success is False
     assert "Could not understand" in result.error.message
+
+@pytest.mark.asyncio
+async def test_handle_input_routes_to_pentest_analysis(mock_agents):
+    """Test that 'run_pentest_analysis' intent calls the pentestgpt agent."""
+    mock_agents["master_interpreter"].interpret.return_value = {
+        "intent": "run_pentest_analysis",
+        "parameters": {"model": "test_model"}
+    }
+    mock_agents["pentestgpt_agent"].setup_and_run = AsyncMock(return_value=True)
+    orchestrator = OrchestratorAgent(**mock_agents)
+
+    await orchestrator.handle_input("run pentest analysis")
+
+    mock_agents["pentestgpt_agent"].setup_and_run.assert_called_once_with(override_model="test_model")
