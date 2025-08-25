@@ -28,17 +28,9 @@ The system is designed with a robust, agent-based architecture that is secure, u
 
 ---
 
-## Installation
+## Quick Installation
 
-Getting the framework up and running is simple.
-
-### Prerequisites
-
-- **Python 3.11+**
-- **Poetry**: For managing Python dependencies.
-- **Git**
-
-### Automated Installation
+Getting started is designed to be as simple as possible. You only need to run two commands.
 
 1.  **Clone the Repository**
     ```bash
@@ -47,12 +39,12 @@ Getting the framework up and running is simple.
     ```
 
 2.  **Run the Setup Script**
-    This script will automatically detect your OS (Termux, Kali, etc.), install necessary system packages (like `build-essential`), and then use `poetry` to install all required Python libraries.
+    This one-time setup script checks for dependencies, installs the framework, and gets everything ready for you.
     ```bash
-    bash install.sh
+    bash first_run_setup.sh
     ```
 
-That's it! The script will handle everything for you.
+That's it! The script is idempotent, meaning it's safe to run again without breaking your existing installation. After the setup is complete, it will tell you the exact command to start the framework.
 
 ---
 
