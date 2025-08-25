@@ -1,120 +1,87 @@
 import json
-import os
-import shutil
-from termux_cyber_framework.core.use_cases.ports import LoggerPort, LogLevel
-from .config_manager_agent import ConfigManagerAgent
-from .file_manager_agent import FileManagerAgent
+from typing import List, Dict, Any, Optional
+
+from termux_cyber_framework.agents.tool_installer_agent import ToolInstallerAgent
+from termux_cyber_framework.agents.config_manager_agent import ConfigManagerAgent
+from termux_cyber_framework.adapters.command_parser.master_ai_interpreter import MasterAIInterpreter
+from termux_cyber_framework.core.domain.models import Tool
 
 class DoctorAgent:
     """
-    An agent responsible for running health checks on the system and attempting
-    to self-heal from common configuration issues.
+    Performs user-facing health checks on the framework's configuration and dependencies.
     """
-    def __init__(self, logger: LoggerPort, config_manager: ConfigManagerAgent, file_manager: FileManagerAgent, config_paths: list[str], tool_catalog_path: str):
-        self.logger = logger
-        self.config_manager = config_manager
-        self.file_manager = file_manager
-        self.config_paths = config_paths
-        self.tool_catalog_path = tool_catalog_path
+    def __init__(
+        self,
+        tool_installer: ToolInstallerAgent,
+        config_manager: ConfigManagerAgent,
+        master_interpreter: MasterAIInterpreter,
+        tool_catalog_path: str = "data/tool_catalog.json"
+    ):
+        self._tool_installer = tool_installer
+        self._config_manager = config_manager
+        self._master_interpreter = master_interpreter
+        self._tool_catalog_path = tool_catalog_path
+        self._tool_catalog = self._load_tool_catalog()
 
-    def run_checks(self):
-        """
-        Runs all health checks and logs the results. Attempts to restore
-        configs if they are invalid.
-        """
-        self.logger.log("Starting system health checks...", level=LogLevel.INFO)
-
+    def _load_tool_catalog(self) -> List[Dict[str, Any]]:
+        """Loads the tool catalog from the JSON file."""
         try:
-            self._check_config_integrity()
-            self._check_api_key()
-            self._check_tool_availability()
-            self.backup_configs()
-        except (FileNotFoundError, ValueError) as e:
-            self.logger.log(f"A critical health check failed and could not be resolved: {e}", level=LogLevel.ERROR)
-            raise
+            with open(self._tool_catalog_path, 'r') as f:
+                return json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return []
 
-        self.logger.log("System health checks passed successfully.", level=LogLevel.INFO)
-
-    def _is_config_valid(self, path: str) -> bool:
-        """Helper to check if a single config file exists and is valid JSON."""
-        content = self.file_manager.read_file(path)
-        if content is None:
-            return False
-        try:
-            json.loads(content)
-            return True
-        except json.JSONDecodeError:
-            return False
-
-    def _restore_config(self, path: str) -> bool:
-        """Attempts to restore a config file from its backup."""
-        backup_path = f"{path}.bak"
-        self.logger.log(f"Attempting to restore '{path}' from backup '{backup_path}'...", level=LogLevel.WARNING)
-        if self.file_manager.path_exists(backup_path):
-            if self.file_manager.copy_file(backup_path, path):
-                self.logger.log(f"Successfully restored '{path}'.", level=LogLevel.INFO)
-                return True
-            else:
-                self.logger.log(f"Failed to restore '{path}' from backup.", level=LogLevel.ERROR)
-                return False
-        else:
-            self.logger.log(f"Backup file '{backup_path}' not found. Cannot restore.", level=LogLevel.ERROR)
-            return False
-
-    def _check_config_integrity(self):
+    async def run_health_checks(self) -> List[Dict[str, Any]]:
         """
-        Checks if config files are valid. If not, attempts to restore them
-        from backup before failing.
+        Runs a series of checks and returns a list of results for display.
         """
-        self.logger.log("Checking configuration file integrity...", level=LogLevel.DEBUG)
-        for path in self.config_paths:
-            if not self._is_config_valid(path):
-                self.logger.log(f"Configuration file '{path}' is missing or corrupt.", level=LogLevel.WARNING)
-                if not self._restore_config(path) or not self._is_config_valid(path):
-                    raise ValueError(f"Critical configuration file '{path}' is corrupt or missing and could not be restored.")
-        self.logger.log("Configuration files are valid.", level=LogLevel.DEBUG)
+        checks = []
 
-    def backup_configs(self):
-        """Creates a backup of all critical configuration files."""
-        self.logger.log("Backing up configuration files...", level=LogLevel.DEBUG)
-        for path in self.config_paths:
-            backup_path = f"{path}.bak"
-            if not self.file_manager.copy_file(path, backup_path):
-                self.logger.log(f"Failed to create backup for '{path}'.", level=LogLevel.WARNING)
+        # 1. Check for config file
+        config_exists = self._config_manager.config_exists()
+        checks.append({
+            "check": "Configuration File",
+            "status": "OK" if config_exists else "ERROR",
+            "message": f"config.json found."
+        })
 
-    def _check_api_key(self):
-        """Checks if a Google API key is configured via file or environment variable."""
-        self.logger.log("Checking for Google API key...", level=LogLevel.DEBUG)
-        key_from_config = self.config_manager.get_api_key('google_gemini')
-        key_from_env = os.getenv("GOOGLE_API_KEY")
+        # 2. Check for API key
+        api_key = self._config_manager.get_api_key("google_gemini")
+        key_is_set = api_key and api_key != "dummy_key_for_testing"
+        checks.append({
+            "check": "Gemini API Key",
+            "status": "OK" if key_is_set else "WARN",
+            "message": "API key is configured." if key_is_set else "Not set. Will be requested on first use."
+        })
 
-        if not key_from_config and not key_from_env:
-            self.logger.log("Google API key is not set in config.json or as an environment variable. AI features will be unavailable.", level=LogLevel.WARNING)
+        # 3. Validate API key connectivity
+        if key_is_set:
+            is_valid = await self._master_interpreter._validate_api_key(api_key)
+            checks.append({
+                "check": "Gemini API Connectivity",
+                "status": "OK" if is_valid else "ERROR",
+                "message": "Successfully connected to the Gemini API." if is_valid else "Failed to connect with the configured key."
+            })
+
+        # 4. Check all tools in the catalog
+        if not self._tool_catalog:
+             checks.append({"check": "Tool Catalog", "status": "ERROR", "message": "tool_catalog.json is missing or invalid."})
         else:
-            self.logger.log("Google API key is configured.", level=LogLevel.DEBUG)
+            for tool_data in self._tool_catalog:
+                try:
+                    tool = Tool(**tool_data)
+                    is_installed = self._tool_installer.is_installed(tool)
+                    checks.append({
+                        "check": f"Tool: {tool.name}",
+                        "status": "OK" if is_installed else "INFO",
+                        "message": "Installed" if is_installed else "Not installed (will be installed on-demand)."
+                    })
+                except Exception:
+                    # Catches Pydantic validation errors for malformed entries
+                    checks.append({
+                        "check": f"Tool: {tool_data.get('name', 'N/A')}",
+                        "status": "ERROR",
+                        "message": "Invalid tool definition in catalog."
+                    })
 
-    def _check_tool_availability(self):
-        """Checks if tools listed in the catalog are available on the system PATH."""
-        self.logger.log("Checking for tool availability...", level=LogLevel.DEBUG)
-        content = self.file_manager.read_file(self.tool_catalog_path)
-        if content is None:
-            self.logger.log(f"Could not read tool catalog at '{self.tool_catalog_path}'. Skipping tool availability check.", level=LogLevel.WARNING)
-            return
-
-        try:
-            tools = json.loads(content)
-        except json.JSONDecodeError as e:
-            self.logger.log(f"Could not parse tool catalog. Skipping tool availability check. Error: {e}", level=LogLevel.WARNING)
-            return
-
-        missing_tools = []
-        for tool_data in tools:
-            command_to_check = (tool_data.get('run_command') or '').split(' ')[0]
-            install_info = tool_data.get('install_info', {})
-            if command_to_check and install_info.get('method') != 'git' and not shutil.which(command_to_check):
-                 missing_tools.append(tool_data['name'])
-
-        if missing_tools:
-            self.logger.log(f"The following tools are not on the PATH and may need installation: {', '.join(missing_tools)}.", level=LogLevel.WARNING)
-        else:
-            self.logger.log("All non-Git-based tools in the catalog appear to be available on the PATH.", level=LogLevel.DEBUG)
+        return checks
