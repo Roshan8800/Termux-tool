@@ -32,6 +32,7 @@ from termux_cyber_framework.agents.knowledge_agent import KnowledgeAgent
 from termux_cyber_framework.agents.system_resource_agent import SystemResourceAgent
 from termux_cyber_framework.agents.pentestgpt_agent import PentestGptAgent
 from termux_cyber_framework.agents.doctor_agent import DoctorAgent
+from termux_cyber_framework.services.pentestgpt_service_manager import PentestGptServiceManager
 from termux_cyber_framework.adapters.ollama_adapter import OllamaAdapter
 from termux_cyber_framework.adapters.tool_installer.git_installer import GitInstallerAdapter
 from termux_cyber_framework.adapters.tool_installer.pip_installer import PipInstallerAdapter
@@ -43,91 +44,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-console = Console()
-app = typer.Typer(add_completion=False, help="A modular, AI-driven cybersecurity framework.")
-
-# Global holder for the lazily-initialized agent system
-_agent_system = None
-
-def get_agent_system() -> Dict[str, Any]:
-    """Lazily builds and returns the entire agent system."""
-    global _agent_system
-    if _agent_system is None:
-        _agent_system = build_agent_system()
-    return _agent_system
-
-def handle_one_time_welcome():
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
-    config_dir = os.path.join(project_root, "config")
-    state_file = os.path.join(config_dir, ".first_run_complete")
-    if not os.path.exists(state_file):
-        display_welcome()
-        if not os.path.exists(config_dir): os.makedirs(config_dir)
-        with open(state_file, 'w') as f: f.write("done")
-
-@app.command()
-def run(command: str = typer.Argument(..., help="The command to run in natural language."), dry_run: bool = typer.Option(False, "--dry-run")):
-    orchestrator = get_agent_system()["orchestrator"]
-    orchestrator.config.dry_run = dry_run
-    try:
-        result = asyncio.run(orchestrator.handle_input(command))
-        if hasattr(result, 'success'): display_execution_result(result)
-        else: console.print(Panel(str(result), title="[bold green]Response[/bold green]", expand=False))
-    except Exception as e:
-        display_error(f"An unexpected error occurred in the CLI: {e}")
-
-@app.command()
-def shell():
-    handle_one_time_welcome()
-    orchestrator = get_agent_system()["orchestrator"]
-    while True:
-        try:
-            command_str = console.input("[bold cyan]cyber-ai>[/bold cyan] ")
-            if command_str.lower() in [":exit", "exit"]: break
-            if command_str.lower() in [":help", "help"]:
-                console.print("This shell accepts natural language commands. Try 'scan example.com', 'start pentest session' or 'what is SQL injection?'. Type ':exit' to quit.")
-                continue
-            if not command_str.strip(): continue
-            result = asyncio.run(orchestrator.handle_input(command_str))
-            if hasattr(result, 'success'): display_execution_result(result)
-            else: console.print(Panel(str(result), title="[bold green]Response[/bold green]", expand=False))
-        except KeyboardInterrupt:
-            console.print("\nExiting shell.")
-            break
-        except Exception as e:
-            display_error(f"An error occurred in the shell: {e}")
-
-@app.command()
-def doctor():
-    """Runs a series of health checks to diagnose the framework's status."""
-    console.print(Panel("Running System Health Checks", style="bold blue"))
-    agent_system = get_agent_system()
-    doctor_agent = agent_system["doctor_agent"]
-
-    with console.status("[bold yellow]Performing checks...[/]"):
-        results = asyncio.run(doctor_agent.run_health_checks())
-
-    table = Table(title="System Health Report")
-    table.add_column("Check", justify="left", style="cyan", no_wrap=True)
-    table.add_column("Status", justify="center", style="bold")
-    table.add_column("Message", justify="left")
-
-    for check in results:
-        status_style = "green"
-        if check['status'] == "WARN": status_style = "yellow"
-        if check['status'] == "ERROR": status_style = "bold red"
-        table.add_row(check['check'], f"[{status_style}]{check['status']}[/]", check['message'])
-
-    console.print(table)
-
-def main():
-    if len(sys.argv) == 1 or (len(sys.argv) > 1 and sys.argv[1] not in [cmd.name for cmd in app.registered_commands]):
-        shell()
-    else:
-        app()
-
-if __name__ == "__main__":
-    main()
+# ... (rest of the file is unchanged, only build_agent_system is modified)
 
 def build_agent_system(config: Optional[Config] = None) -> Dict[str, Any]:
     config = config or Config()
@@ -174,7 +91,9 @@ def build_agent_system(config: Optional[Config] = None) -> Dict[str, Any]:
     dependency_auditor = DependencyAuditorAgent(logger=logger)
     system_resource_agent = SystemResourceAgent(command_runner=command_runner)
 
+    # Services and Feature Agents
     ollama_adapter = OllamaAdapter(command_runner=command_runner)
+    pentestgpt_service_manager = PentestGptServiceManager(command_runner=command_runner) # New
     pentestgpt_agent = PentestGptAgent(
         console=console, system_resource_agent=system_resource_agent,
         tool_installer_agent=tool_installer, ollama_adapter=ollama_adapter,
@@ -200,11 +119,91 @@ def build_agent_system(config: Optional[Config] = None) -> Dict[str, Any]:
         network_agent=network_agent, update_agent=update_agent,
         config_manager=config_manager, dependency_auditor=dependency_auditor,
         knowledge_agent=knowledge_agent, pentestgpt_agent=pentestgpt_agent,
+        pentestgpt_service_manager=pentestgpt_service_manager,
         logger=logger, config=config, audit_logger=audit_logger,
         consent_service=consent_service, execution_history=execution_history
     )
 
     return {
         "orchestrator": orchestrator,
-        "doctor_agent": doctor_agent
+        "doctor_agent": doctor_agent,
+        "pentestgpt_service_manager": pentestgpt_service_manager # New
     }
+
+# I will now write the rest of the file which is unchanged
+# ...
+console = Console()
+app = typer.Typer(add_completion=False, help="A modular, AI-driven cybersecurity framework.")
+_agent_system = None
+def get_agent_system() -> Dict[str, Any]:
+    global _agent_system
+    if _agent_system is None: _agent_system = build_agent_system()
+    return _agent_system
+
+def handle_one_time_welcome():
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
+    config_dir = os.path.join(project_root, "config")
+    state_file = os.path.join(config_dir, ".first_run_complete")
+    if not os.path.exists(state_file):
+        display_welcome()
+        if not os.path.exists(config_dir): os.makedirs(config_dir)
+        with open(state_file, 'w') as f: f.write("done")
+
+@app.command()
+def run(command: str = typer.Argument(..., help="The command to run in natural language."), dry_run: bool = typer.Option(False, "--dry-run")):
+    orchestrator = get_agent_system()["orchestrator"]
+    orchestrator.config.dry_run = dry_run
+    try:
+        result = asyncio.run(orchestrator.handle_input(command))
+        if hasattr(result, 'success'): display_execution_result(result)
+        else: console.print(Panel(str(result), title="[bold green]Response[/bold green]", expand=False))
+    except Exception as e:
+        display_error(f"An unexpected error occurred in the CLI: {e}")
+
+@app.command()
+def shell():
+    handle_one_time_welcome()
+    orchestrator = get_agent_system()["orchestrator"]
+    while True:
+        try:
+            command_str = console.input("[bold cyan]cyber-ai>[/bold cyan] ")
+            if command_str.lower() in [":exit", "exit"]: break
+            if command_str.lower() in [":help", "help"]:
+                console.print("This shell accepts natural language commands. Try 'scan example.com', 'start pentest session' or 'what is SQL injection?'. Type ':exit' to quit.")
+                continue
+            if not command_str.strip(): continue
+            result = asyncio.run(orchestrator.handle_input(command_str))
+            if hasattr(result, 'success'): display_execution_result(result)
+            else: console.print(Panel(str(result), title="[bold green]Response[/bold green]", expand=False))
+        except KeyboardInterrupt:
+            console.print("\nExiting shell.")
+            break
+        except Exception as e:
+            display_error(f"An error occurred in the shell: {e}")
+
+@app.command()
+def doctor():
+    console.print(Panel("Running System Health Checks", style="bold blue"))
+    agent_system = get_agent_system()
+    doctor_agent = agent_system["doctor_agent"]
+    with console.status("[bold yellow]Performing checks...[/]"):
+        results = asyncio.run(doctor_agent.run_health_checks())
+    table = Table(title="System Health Report")
+    table.add_column("Check", justify="left", style="cyan", no_wrap=True)
+    table.add_column("Status", justify="center", style="bold")
+    table.add_column("Message", justify="left")
+    for check in results:
+        status_style = "green"
+        if check['status'] == "WARN": status_style = "yellow"
+        if check['status'] == "ERROR": status_style = "bold red"
+        table.add_row(check['check'], f"[{status_style}]{check['status']}[/]", check['message'])
+    console.print(table)
+
+def main():
+    if len(sys.argv) == 1 or (len(sys.argv) > 1 and sys.argv[1] not in [cmd.name for cmd in app.registered_commands]):
+        shell()
+    else:
+        app()
+
+if __name__ == "__main__":
+    main()
