@@ -38,6 +38,7 @@ graph TD
         E_3[PentestGptAgent]
         E_4[SystemResourceAgent]
         E_5[UpdateAgent]
+        E_6[DoctorAgent]
     end
 
     subgraph "Reporting & I/O Agents"
@@ -66,7 +67,9 @@ graph TD
     - **`OllamaAdapter`** acts as a service manager for the local Ollama engine.
     - **`PentestGptAgent`** orchestrates the entire workflow of checking system resources, dynamically selecting a model, ensuring all dependencies are installed, and running a PentestGPT session. It's a prime example of an agent that consumes the services of other agents (`SystemResourceAgent`, `ToolInstallerAgent`, `OllamaAdapter`).
 
-- **`SystemResourceAgent`**: A new agent responsible for checking the state of the system, such as available storage space. Designed to be extensible for future checks like CPU and memory.
+- **`SystemResourceAgent`**: An agent responsible for checking the state of the system, such as available storage space. Designed to be extensible for future checks like CPU and memory.
+
+- **`DoctorAgent`**: A user-facing diagnostic agent. It runs a series of health checks (tool installation, config, API connectivity) and presents a clear report to the user to help them diagnose any issues.
 
 - **`Report Generators`**: A set of classes that implement the `ReportGeneratorPort`. The system now supports generating reports in TXT, JSON, Markdown, and PDF formats after every command execution.
 
