@@ -58,7 +58,7 @@ def mocked_agent_system(monkeypatch, request):
     monkeypatch.setattr("termux_cyber_framework.adapters.cli.main.CommandRunner", lambda: mocks["CommandRunner"])
     monkeypatch.setattr("termux_cyber_framework.adapters.cli.main.SecurityComplianceAgent", lambda: mocks["SecurityComplianceAgent"])
     monkeypatch.setattr("termux_cyber_framework.adapters.cli.main.ExecutionHistory", lambda: mocks["ExecutionHistory"])
-    monkeypatch.setattr("termux_cyber_framework.adapters.cli.main.MasterAIInterpreter", lambda api_key: mocks["MasterAIInterpreter"])
+    monkeypatch.setattr("termux_cyber_framework.adapters.cli.main.MasterAIInterpreter", lambda api_key, config_manager, console: mocks["MasterAIInterpreter"])
     monkeypatch.setattr("termux_cyber_framework.adapters.cli.main.AIInterpreter", lambda tool_catalog_path, api_key: mocks["AIInterpreter"])
     if mocks.get("InstallLogger"):
         mock_logger_instance = MockInstallLogger()

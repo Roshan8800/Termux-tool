@@ -93,7 +93,11 @@ def build_agent_system(
     ]
 
     # Foundational Agents
-    master_interpreter = MasterAIInterpreter(api_key=api_key)
+    master_interpreter = MasterAIInterpreter(
+        api_key=api_key,
+        config_manager=config_manager,
+        console=console
+    )
     tool_command_parser = AIInterpreter(tool_catalog_path=tool_catalog_path, api_key=api_key)
     knowledge_agent = KnowledgeAgent(api_key=api_key, file_manager=file_manager, logger=logger, tool_catalog_path=tool_catalog_path)
     network_agent = NetworkAgent(logger=logger)
