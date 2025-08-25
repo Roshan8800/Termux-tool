@@ -116,9 +116,13 @@ async def test_handle_input_routes_to_pentest_analysis(mock_agents):
         "intent": "run_pentest_analysis",
         "parameters": {"model": "test_model"}
     }
-    mock_agents["pentestgpt_agent"].setup_and_run = AsyncMock(return_value=True)
+    # Mock the new method name and its return value
+    mock_agents["pentestgpt_agent"].ensure_environment_is_ready = AsyncMock(return_value="test_model")
     orchestrator = OrchestratorAgent(**mock_agents)
 
-    await orchestrator.handle_input("run pentest analysis")
+    result = await orchestrator.handle_input("run pentest analysis")
 
-    mock_agents["pentestgpt_agent"].setup_and_run.assert_called_once_with(override_model="test_model")
+    # Assert the correct method was called
+    mock_agents["pentestgpt_agent"].ensure_environment_is_ready.assert_called_once_with(override_model="test_model")
+    # Assert the orchestrator returns the expected confirmation message
+    assert "PentestGPT environment is ready" in result

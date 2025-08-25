@@ -106,8 +106,14 @@ class OrchestratorAgent:
             return self._handle_audit_dependencies()
         elif intent == "knowledge_query":
             return await self._handle_knowledge_query(params)
-        elif intent == "run_pentest_analysis": # Added
-            return await self.pentestgpt_agent.setup_and_run()
+        elif intent == "run_pentest_analysis":
+            override_model = params.get("model")
+            selected_model = await self.pentestgpt_agent.ensure_environment_is_ready(override_model=override_model)
+            # For now, we just confirm it ran. The service manager will handle the rest.
+            if selected_model:
+                return f"PentestGPT environment is ready with model: {selected_model}"
+            else:
+                return "Failed to set up PentestGPT environment."
         else:
             error_message = params.get("message", f"Could not understand the command: {user_input}")
             self.logger.log(error_message, level=LogLevel.ERROR)
@@ -358,7 +364,13 @@ class OrchestratorAgent:
             return await self._handle_knowledge_query(params)
         elif intent == "run_pentest_analysis":
             override_model = params.get("model")
-            return await self.pentestgpt_agent.setup_and_run(override_model=override_model)
+            # The new method returns the selected model name on success, or None on failure
+            selected_model = await self.pentestgpt_agent.ensure_environment_is_ready(override_model=override_model)
+            if selected_model:
+                # This is a placeholder for the future ServiceManager interaction
+                return f"PentestGPT environment is ready with model: {selected_model}"
+            else:
+                return "Failed to set up PentestGPT environment."
         else:
             error_message = params.get("message", f"Could not understand the command: {user_input}")
             self.logger.log(error_message, level=LogLevel.ERROR)
