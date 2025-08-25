@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# Wrapper script for the Termux Cyber Framework to provide a simpler command-line alias.
+# This script allows running the framework with `cyber framework <command>` or `cyber ai <command>`.
+
+# Get the directory where this script is located to ensure we run poetry from the project root.
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+# Check if the first argument is 'framework' or 'ai'
+if [[ "$1" != "framework" && "$1" != "ai" ]]; then
+    echo "Usage: cyber [framework|ai] [command]"
+    echo "Example: cyber framework run \"scan example.com\""
+    exit 1
+fi
+
+# Remove the first argument ('framework' or 'ai') so the rest can be passed to the tcf script.
+shift
+
+# Check if poetry is installed
+if ! command -v poetry &> /dev/null; then
+    echo "Error: poetry is not installed or not in your PATH."
+    echo "Please run the first_run_setup.sh script to install dependencies."
+    exit 1
+fi
+
+# Execute the main framework script from the project root directory, passing all remaining arguments.
+(cd "$SCRIPT_DIR" && poetry run tcf "$@")

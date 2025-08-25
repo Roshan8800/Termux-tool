@@ -24,13 +24,11 @@ print_error() {
 # --- Prerequisite Checks ---
 print_info "Checking for required system dependencies..."
 
-# Check for Git
 if ! command -v git &> /dev/null; then
     print_error "Git is not installed. Please install Git before running this script."
     exit 1
 fi
 
-# Check for Python
 if ! command -v python3 &> /dev/null; then
     print_error "Python 3 is not installed. Please install Python 3 before running this script."
     exit 1
@@ -40,13 +38,13 @@ print_info "All system dependencies found."
 echo ""
 
 # --- Idempotency Check ---
-# Check if the poetry environment already exists.
-# `poetry env info -p` returns the path to the virtualenv. If it succeeds, we assume setup is done.
 if poetry env info -p &> /dev/null; then
     print_warn "A Poetry environment already exists for this project."
     print_info "It seems the framework is already installed."
     echo ""
-    print_info "To run the framework, use the following command:"
+    print_info "To run the framework, try the following command:"
+    echo -e "${GREEN}cyber framework shell${NC}"
+    print_info "If that doesn't work, you can always use:"
     echo -e "${GREEN}poetry run tcf shell${NC}"
     exit 0
 fi
@@ -56,13 +54,10 @@ fi
 print_info "No existing installation found. Starting the setup process..."
 echo ""
 
-# Check if install.sh exists and is executable
 if [ -f "install.sh" ]; then
     chmod +x install.sh
-    # Run the core installation script
     ./install.sh
 
-    # Check the exit code of install.sh
     if [ $? -ne 0 ]; then
         print_error "The core installation script (install.sh) failed. Please check the output above for errors."
         exit 1
@@ -72,11 +67,45 @@ else
     exit 1
 fi
 
+# --- Alias Creation ---
+print_info "Creating the 'cyber' command alias..."
+
+# Determine the target directory for binaries
+TARGET_DIR=""
+if [[ "$OSTYPE" == "linux-android" ]]; then
+    # Termux environment
+    TARGET_DIR="/data/data/com.termux/files/usr/bin"
+else
+    # Standard Linux environment
+    TARGET_DIR="/usr/local/bin"
+fi
+
+# Check if the target directory is in the PATH
+if [[ ":$PATH:" == *":$TARGET_DIR:"* ]]; then
+    # Create the symbolic link
+    ln -sf "$(pwd)/cyber" "$TARGET_DIR/cyber"
+    if [ $? -eq 0 ]; then
+        print_info "Successfully created the 'cyber' command."
+        print_info "You can now run the framework using 'cyber framework shell'."
+    else
+        print_error "Failed to create the 'cyber' command alias in $TARGET_DIR."
+        print_warn "You may need to run this script with sudo, or create the alias manually."
+        print_info "You can still run the framework using 'poetry run tcf shell'."
+    fi
+else
+    print_warn "The target directory '$TARGET_DIR' is not in your \$PATH."
+    print_warn "The 'cyber' command was not created automatically."
+    print_info "To use the 'cyber' command, please add the following line to your shell profile (e.g., ~/.bashrc or ~/.zshrc):"
+    echo -e "${GREEN}export PATH=\"$TARGET_DIR:\$PATH\"${NC}"
+    print_info "For now, you can run the framework using 'poetry run tcf shell'."
+fi
+
+
 # --- Final Guidance ---
 echo ""
 print_info "Setup is complete!"
 print_info "You can now run the framework's interactive shell with the following command:"
 echo ""
-echo -e "  ${GREEN}poetry run tcf shell${NC}"
+echo -e "  ${GREEN}cyber framework shell${NC}"
 echo ""
 print_warn "On your first run, the AI models may take some time to download."
