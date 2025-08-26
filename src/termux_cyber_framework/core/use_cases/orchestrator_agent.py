@@ -16,6 +16,9 @@ from termux_cyber_framework.agents.error_analyst_agent import ErrorAnalystAgent
 from termux_cyber_framework.agents.error_fixer_agent import ErrorFixerAgent
 from termux_cyber_framework.agents.tool_installer_agent import ToolInstallerAgent
 from termux_cyber_framework.agents.security_advisor_agent import SecurityAdvisorAgent
+from termux_cyber_framework.agents.auto_editor_agent import AutoEditorAgent
+from termux_cyber_framework.agents.scenario_planner_agent import ScenarioPlannerAgent
+from termux_cyber_framework.agents.data_collector_agent import DataCollectorAgent
 from termux_cyber_framework.agents.network_agent import NetworkAgent
 from termux_cyber_framework.agents.update_agent import UpdateAgent
 from termux_cyber_framework.agents.config_manager_agent import ConfigManagerAgent
@@ -30,9 +33,11 @@ class OrchestratorAgent:
         tool_adapters: Dict[str, ToolAdapterPort], report_generators: List[ReportGeneratorPort],
         error_analyst: ErrorAnalystAgent, error_fixer: ErrorFixerAgent,
         tool_installer: ToolInstallerAgent, security_advisor: SecurityAdvisorAgent,
-        network_agent: NetworkAgent, update_agent: UpdateAgent,
-        config_manager: ConfigManagerAgent, dependency_auditor: DependencyAuditorAgent,
-        knowledge_agent: KnowledgeAgent, pentestgpt_agent: PentestGptAgent,
+        auto_editor: AutoEditorAgent, scenario_planner: ScenarioPlannerAgent,
+        data_collector: DataCollectorAgent, network_agent: NetworkAgent,
+        update_agent: UpdateAgent, config_manager: ConfigManagerAgent,
+        dependency_auditor: DependencyAuditorAgent, knowledge_agent: KnowledgeAgent,
+        pentestgpt_agent: PentestGptAgent,
         pentestgpt_service_manager: PentestGptServiceManager, logger: LoggerPort,
         config: Config, audit_logger: AuditLoggerPort,
         consent_service: ConsentPort, execution_history: ExecutionHistory
@@ -45,6 +50,9 @@ class OrchestratorAgent:
         self.error_fixer = error_fixer
         self.tool_installer = tool_installer
         self.security_advisor = security_advisor
+        self.auto_editor = auto_editor
+        self.scenario_planner = scenario_planner
+        self.data_collector = data_collector
         self.network_agent = network_agent
         self.update_agent = update_agent
         self.config_manager = config_manager
@@ -92,6 +100,48 @@ class OrchestratorAgent:
                     return "PentestGPT service started successfully. The analysis will now begin."
                 else: return "Failed to start the PentestGPT service."
             else: return "Failed to set up PentestGPT environment."
+        elif intent == "plan_scenario":
+            goal = params.get("goal")
+            if not goal: return "Could not plan scenario: No goal was provided."
+            plan = await self.scenario_planner.plan_attack_scenario(goal)
+            if not plan:
+                return "Could not generate a plan for the given goal."
+            response = "Generated Attack Plan:\n"
+            for i, command in enumerate(plan):
+                response += f"{i+1}. {command.tool_name} {' '.join(command.args)}\n"
+            return response
+        elif intent == "extract_data":
+            if not self.execution_history.history:
+                return "Cannot extract data: No previous commands have been run."
+            last_result = self.execution_history.history[-1]
+            if not last_result.success:
+                return "Cannot extract data: The last command failed."
+
+            extracted_data = await self.data_collector.collect_data(last_result)
+            if not extracted_data:
+                return "No relevant data found in the last command's output."
+
+            response = "Extracted Data:\n"
+            for item in extracted_data:
+                response += f"- {item['type']}: {item['value']}\n"
+            return response
+        elif intent == "auto_fix_script":
+            script_path = params.get("script_path")
+            if not script_path:
+                return "Could not fix script: No script path was provided."
+
+            # Find the last failed command to use as context
+            last_failed_result = next((r for r in reversed(self.execution_history.history) if not r.success and r.error), None)
+            if not last_failed_result:
+                return "Could not fix script: No previous failed command found to provide context."
+
+            self.logger.log(f"Attempting to auto-fix script: {script_path}", level=LogLevel.INFO)
+            success = await self.auto_editor.patch_script(script_path, last_failed_result.error, last_failed_result.command)
+
+            if success:
+                return f"Successfully applied AI-generated patch to {script_path}."
+            else:
+                return f"Failed to automatically patch {script_path}."
         else:
             return self._create_error_result(user_input, f"Could not understand the command: {user_input}")
 

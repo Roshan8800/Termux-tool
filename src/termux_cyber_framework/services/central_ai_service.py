@@ -154,13 +154,101 @@ User input: "{user_input}"
             print(f"Central AI service failed to parse command: {e}")
             raise
 
+    def _build_scenario_plan_prompt(self, goal: str) -> str:
+        """Builds the prompt for the Gemini API to generate a scenario plan."""
+        return f"""
+You are an expert penetration tester and AI assistant. Your task is to create a step-by-step plan to achieve a given cybersecurity goal. The plan should be a sequence of runnable commands for the framework.
+
+**User's Goal:** "{goal}"
+
+**Your Task:**
+Based on the user's goal, generate a JSON array of command objects. Each object must have a "tool" and "args" key. The sequence of commands should represent a logical workflow to achieve the goal.
+
+**Output Format:**
+- You must respond with ONLY a valid JSON array of objects.
+- Each object in the array must have the following structure:
+  `{{"tool": "tool_name", "args": ["arg1", "arg2", ...]}}`
+
+**Example Scenarios:**
+- **Goal:** "Find and exploit SQL injection vulnerabilities on example.com"
+- **Your Output:**
+  ```json
+  [
+    {{"tool": "nmap", "args": ["-p", "80,443", "example.com"]}},
+    {{"tool": "nikto", "args": ["-h", "http://example.com"]}},
+    {{"tool": "sqlmap", "args": ["-u", "http://example.com/vulnerable_page.php?id=1", "--batch", "--dump"]}}
+  ]
+  ```
+
+- **Goal:** "Perform a full reconnaissance on the example.com domain"
+- **Your Output:**
+  ```json
+  [
+    {{"tool": "whois", "args": ["example.com"]}},
+    {{"tool": "nslookup", "args": ["example.com"]}},
+    {{"tool": "nmap", "args": ["-A", "example.com"]}}
+  ]
+  ```
+
+Now, generate the plan for the user's goal stated above.
+"""
+
     async def plan_scenario(self, goal: str) -> List[Command]:
-        # TODO: Implement this method
-        return []
+        """Generates a multi-step attack plan using the Gemini API."""
+        if not self.model:
+            raise ConnectionError("AI service is not available. Check API key.")
+
+        prompt = self._build_scenario_plan_prompt(goal)
+        try:
+            response = await self.model.generate_content_async(prompt)
+            plan_json = response.text.strip()
+            if plan_json.startswith("```json"):
+                plan_json = plan_json[7:-4].strip()
+
+            plan_data = json.loads(plan_json)
+            commands = [Command(tool_name=item["tool"], args=item["args"], raw_command=f"{item['tool']} {' '.join(item['args'])}") for item in plan_data]
+            return commands
+        except Exception as e:
+            print(f"Central AI service failed to generate scenario plan: {e}")
+            raise
+
+    def _build_error_analysis_prompt(self, command: Command, error: Error) -> str:
+        """Builds the prompt for the Gemini API to analyze an error."""
+        return f"""
+You are an expert-level cybersecurity assistant and command-line tool troubleshooter.
+A user in a Termux/Linux environment tried to run a command and it failed.
+Your task is to analyze the error and provide a clear, concise explanation and a suggested fix.
+
+**Command Details:**
+- **Tool:** `{command.tool_name}`
+- **Full Command Run:** `{' '.join([command.tool_name] + command.args)}`
+- **Original User Input:** `{command.raw_command}`
+
+**Error Details:**
+- **Exit Code:** `{error.error_code}`
+- **Error Message / Stderr:**
+```
+{error.message}
+```
+
+**Your Task:**
+1.  **Explain the Error:** In simple terms, what does this error mean? Why did it likely happen?
+2.  **Suggest a Fix:** Provide a concrete command or action the user should take to fix the problem. If you suggest a command, provide the exact command to run.
+
+Format your response clearly in Markdown.
+"""
 
     async def analyze_error(self, command: Command, error: Error) -> str:
-        # TODO: Implement this method
-        return "AI error analysis is not yet implemented."
+        """Analyzes a command execution error using the Gemini API."""
+        if not self.model:
+            return "AI error analysis is disabled because no API key was provided."
+
+        prompt = self._build_error_analysis_prompt(command, error)
+        try:
+            response = await self.model.generate_content_async(prompt)
+            return response.text.strip()
+        except Exception as e:
+            return f"AI error analysis failed: {e}"
 
     def _build_command_fix_prompt(self, command: Command, error: Error) -> str:
         """Builds the prompt for the Gemini API to suggest a fix."""
@@ -231,9 +319,63 @@ Now, process the failed command detailed above.
         except (json.JSONDecodeError, KeyError, Exception):
             return None
 
+    def _build_script_patch_prompt(self, script_content: str, error: Error, command: Command) -> str:
+        """Builds the prompt for the Gemini API to generate a script patch."""
+        return f"""
+You are an expert Python programmer tasked with fixing a broken script.
+A user tried to execute a command, and it failed with an error. The error seems to be related to the script itself.
+Your task is to generate a patch in the unified diff format to fix the script.
+
+**Command Run:** `{' '.join([command.tool_name] + command.args)}`
+
+**Error Message:**
+```
+{error.message}
+```
+
+**Original Script Content:**
+```python
+{script_content}
+```
+
+**Your Task:**
+Analyze the error and the script content. Generate a patch file that will fix the script.
+- The patch MUST be in the unified diff format.
+- The patch should only contain the necessary changes to fix the error.
+- Do not include any explanations, just the raw diff output.
+
+**Example Patch Output:**
+```diff
+--- a/script.py
++++ b/script.py
+@@ -1,5 +1,5 @@
+ import sys
+
+ def main():
+-    print("Hello, " + sys.argv[1])
++    print("Hello, " + sys.argv[1] + "!")
+
+ if __name__ == "__main__":
+     main()
+```
+"""
+
     async def generate_script_patch(self, script_content: str, error: Error, command: Command) -> str:
-        # TODO: Implement this method
-        return ""
+        """Generates a patch for a broken script using the Gemini API."""
+        if not self.model:
+            raise ConnectionError("AI service is not available. Check API key.")
+
+        prompt = self._build_script_patch_prompt(script_content, error, command)
+        try:
+            response = await self.model.generate_content_async(prompt)
+            # Clean up the response to ensure it's a valid diff
+            patch_text = response.text.strip()
+            if patch_text.startswith("```diff"):
+                patch_text = patch_text[7:-4].strip()
+            return patch_text
+        except Exception as e:
+            print(f"Central AI service failed to generate script patch: {e}")
+            raise
 
     def _build_knowledge_question_prompt(self, question: str, tool_context: Optional[str] = None) -> str:
         """Builds the prompt for a knowledge base question."""
@@ -264,9 +406,82 @@ Answer:
         except Exception as e:
             return f"An error occurred while querying the knowledge base: {e}"
 
+    def _build_data_extraction_prompt(self, result: ExecutionResult) -> str:
+        """Builds the prompt for the Gemini API to extract structured data."""
+        return f"""
+You are an AI data extraction specialist. Your task is to extract key entities from the output of a cybersecurity tool.
+
+**Tool Run Details:**
+- **Tool:** `{result.command.tool_name}`
+- **Full Command Run:** `{' '.join([result.command.tool_name] + result.command.args)}`
+
+**Tool Output:**
+```
+{result.output}
+```
+
+**Your Task:**
+Analyze the tool output and extract key information as a JSON array of objects. Each object should represent a single piece of information (an "entity") and have two keys: "type" and "value".
+
+**Entity Types to Extract:**
+- "ip_address"
+- "domain_name"
+- "port"
+- "vulnerability"
+- "email_address"
+- "file_path"
+- "url"
+- "cve"
+
+**Output Format:**
+- You must respond with ONLY a valid JSON array of objects.
+- If no relevant entities are found, return an empty array `[]`.
+
+**Example:**
+- **Tool Output:**
+  ```
+  Starting Nmap 7.80 ... at 2023-10-27 10:00 EDT
+  Nmap scan report for example.com (93.184.216.34)
+  Host is up (0.011s latency).
+  Not shown: 998 filtered ports
+  PORT   STATE SERVICE
+  80/tcp open  http
+  443/tcp open  https
+
+  Nmap done: 1 IP address (1 host up) scanned in 3.44 seconds
+  ```
+- **Your Output:**
+  ```json
+  [
+    {{"type": "domain_name", "value": "example.com"}},
+    {{"type": "ip_address", "value": "93.184.216.34"}},
+    {{"type": "port", "value": "80"}},
+    {{"type": "port", "value": "443"}}
+  ]
+  ```
+
+Now, process the tool output detailed above.
+"""
+
     async def extract_data_from_output(self, result: ExecutionResult) -> List[Dict[str, Any]]:
-        # TODO: Implement this method
-        return []
+        """Extracts structured data from a tool's execution result using the Gemini API."""
+        if not self.model:
+            raise ConnectionError("AI service is not available. Check API key.")
+
+        if not result.success or not result.output:
+            return []
+
+        prompt = self._build_data_extraction_prompt(result)
+        try:
+            response = await self.model.generate_content_async(prompt)
+            data_json = response.text.strip()
+            if data_json.startswith("```json"):
+                data_json = data_json[7:-4].strip()
+
+            return json.loads(data_json)
+        except (json.JSONDecodeError, Exception) as e:
+            print(f"Central AI service failed to extract data: {e}")
+            return [] # Return empty list on failure
 
     def _build_security_advice_prompt(self, result: ExecutionResult) -> str:
         """Builds the prompt for the Gemini API to generate security advice."""

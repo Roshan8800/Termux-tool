@@ -30,6 +30,9 @@ from termux_cyber_framework.agents.file_manager_agent import FileManagerAgent
 from termux_cyber_framework.agents.dependency_auditor_agent import DependencyAuditorAgent
 from termux_cyber_framework.agents.knowledge_agent import KnowledgeAgent
 from termux_cyber_framework.agents.system_resource_agent import SystemResourceAgent
+from termux_cyber_framework.agents.auto_editor_agent import AutoEditorAgent
+from termux_cyber_framework.agents.scenario_planner_agent import ScenarioPlannerAgent
+from termux_cyber_framework.agents.data_collector_agent import DataCollectorAgent
 from termux_cyber_framework.agents.pentestgpt_agent import PentestGptAgent
 from termux_cyber_framework.agents.doctor_agent import DoctorAgent
 from termux_cyber_framework.services.pentestgpt_service_manager import PentestGptServiceManager
@@ -114,12 +117,18 @@ def build_agent_system(config: Optional[Config] = None) -> Dict[str, Any]:
     error_fixer = ErrorFixerAgent(ai_service=central_ai_service)
     security_advisor = SecurityAdvisorAgent(ai_service=central_ai_service)
     update_agent = UpdateAgent(logger=logger, audit_logger=audit_logger)
+    auto_editor = AutoEditorAgent(ai_service=central_ai_service, file_manager=file_manager)
+    scenario_planner = ScenarioPlannerAgent(ai_service=central_ai_service)
+    data_collector = DataCollectorAgent(ai_service=central_ai_service)
+
 
     orchestrator = OrchestratorAgent(
         master_interpreter=master_interpreter, tool_command_parser=tool_command_parser,
         tool_adapters=tool_adapters, report_generators=report_generators,
         error_analyst=error_analyst, error_fixer=error_fixer,
         tool_installer=tool_installer, security_advisor=security_advisor,
+        auto_editor=auto_editor, scenario_planner=scenario_planner,
+        data_collector=data_collector,
         network_agent=network_agent, update_agent=update_agent,
         config_manager=config_manager, dependency_auditor=dependency_auditor,
         knowledge_agent=knowledge_agent, pentestgpt_agent=pentestgpt_agent,
