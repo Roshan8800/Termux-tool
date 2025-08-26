@@ -1,5 +1,0 @@
-pydantic
-typer
-rich
-google-genai
-fpdf2
