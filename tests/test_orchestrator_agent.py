@@ -15,6 +15,7 @@ def mock_agents():
         "report_generators": [],
         "error_analyst": MagicMock(),
         "error_fixer": MagicMock(),
+        "auto_editor": MagicMock(),
         "tool_installer": MagicMock(),
         "security_advisor": MagicMock(),
         "network_agent": MagicMock(),

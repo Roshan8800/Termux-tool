@@ -47,9 +47,9 @@ fi
 print_info "Installing system dependencies (python, pip, rust, build-essential)..."
 if [ "$PKG_MANAGER" == "apt-get" ]; then
     $SUDO_CMD apt-get update
-    $SUDO_CMD apt-get install -y python3 python3-pip python3-dev build-essential rustc
+    $SUDO_CMD apt-get install -y python3 python3-pip python3-dev build-essential rustc shellcheck
 else # pkg
-    pkg install -y python python-pip build-essential rust
+    pkg install -y python python-pip build-essential rust shellcheck
 fi
 
 if [ $? -ne 0 ]; then
