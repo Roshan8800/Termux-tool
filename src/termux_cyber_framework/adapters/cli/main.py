@@ -35,6 +35,7 @@ from termux_cyber_framework.agents.doctor_agent import DoctorAgent
 from termux_cyber_framework.agents.auto_editor_agent import AutoEditorAgent
 from termux_cyber_framework.agents.scenario_planner_agent import ScenarioPlannerAgent
 from termux_cyber_framework.agents.data_collector_agent import DataCollectorAgent
+from termux_cyber_framework.agents.user_interaction_agent import UserInteractionAgent
 from termux_cyber_framework.services.pentestgpt_service_manager import PentestGptServiceManager
 from termux_cyber_framework.adapters.ollama_adapter import OllamaAdapter
 from termux_cyber_framework.adapters.tool_installer.git_installer import GitInstallerAdapter
@@ -42,7 +43,7 @@ from termux_cyber_framework.adapters.tool_installer.pip_installer import PipInst
 from termux_cyber_framework.adapters.tool_installer.pkg_installer import PkgInstallerAdapter
 from termux_cyber_framework.adapters.tool_installer.shell_installer import ShellInstallerAdapter
 from termux_cyber_framework.adapters.logger.install_logger import InstallLogger
-from termux_cyber_framework.adapters.cli.view import display_welcome, display_execution_result, display_error
+from termux_cyber_framework.adapters.cli.view import display_welcome, display_error
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -114,6 +115,7 @@ def build_agent_system(config: Optional[Config] = None) -> Dict[str, Any]:
     auto_editor = AutoEditorAgent(api_key=api_key)
     scenario_planner = ScenarioPlannerAgent(api_key=api_key, tool_catalog=tool_catalog)
     data_collector = DataCollectorAgent(api_key=api_key)
+    user_interaction = UserInteractionAgent(console=console, api_key=api_key)
     security_advisor = SecurityAdvisorAgent(api_key=api_key)
     update_agent = UpdateAgent(logger=logger, audit_logger=audit_logger)
 
@@ -122,6 +124,7 @@ def build_agent_system(config: Optional[Config] = None) -> Dict[str, Any]:
         tool_adapters=tool_adapters, report_generators=report_generators,
         error_analyst=error_analyst, error_fixer=error_fixer, auto_editor=auto_editor,
         scenario_planner=scenario_planner, data_collector=data_collector,
+        user_interaction_agent=user_interaction,
         tool_installer=tool_installer, security_advisor=security_advisor,
         network_agent=network_agent, update_agent=update_agent,
         config_manager=config_manager, dependency_auditor=dependency_auditor,
@@ -161,11 +164,9 @@ def run(command: str = typer.Argument(..., help="The command to run in natural l
     orchestrator = get_agent_system()["orchestrator"]
     orchestrator.config.dry_run = dry_run
     try:
-        result = asyncio.run(orchestrator.handle_input(command))
-        if hasattr(result, 'success'): display_execution_result(result)
-        else: console.print(Panel(str(result), title="[bold green]Response[/bold green]", expand=False))
+        asyncio.run(orchestrator.handle_input(command))
     except Exception as e:
-        display_error(f"An unexpected error occurred in the CLI: {e}")
+        display_error(f"A critical error occurred in the CLI: {e}")
 
 @app.command()
 def shell():
@@ -179,9 +180,7 @@ def shell():
                 console.print("This shell accepts natural language commands. Try 'scan example.com', 'start pentest session' or 'what is SQL injection?'. Type ':exit' to quit.")
                 continue
             if not command_str.strip(): continue
-            result = asyncio.run(orchestrator.handle_input(command_str))
-            if hasattr(result, 'success'): display_execution_result(result)
-            else: console.print(Panel(str(result), title="[bold green]Response[/bold green]", expand=False))
+            asyncio.run(orchestrator.handle_input(command_str))
         except KeyboardInterrupt:
             console.print("\nExiting shell.")
             break
