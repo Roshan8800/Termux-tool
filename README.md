@@ -14,7 +14,7 @@ It's designed for simplicity, making advanced security tools accessible to every
 
 ## How it Works
 
-When you type a command in plain English, like "scan example.com for open ports," the framework's AI gets to work. It understands your request, selects the right tool for the job (like nmap), runs it, and gives you a clear report of the results. It can even install any missing tools automatically.
+When you type a command in plain English, like "scan example.com for open ports," the framework's AI gets to work. Powered by advanced technologies like Ollama and PentestGPT running silently in the background, the AI understands your request, selects the right tool for the job (like nmap), runs it, and gives you a clear report of the results. It can even install any missing tools automatically.
 
 The entire process is automated, so you can focus on your tasks, not the technical details.
 
