@@ -15,6 +15,8 @@ from termux_cyber_framework.adapters.persistence.execution_history import Execut
 from termux_cyber_framework.agents.error_analyst_agent import ErrorAnalystAgent
 from termux_cyber_framework.agents.error_fixer_agent import ErrorFixerAgent
 from termux_cyber_framework.agents.auto_editor_agent import AutoEditorAgent
+from termux_cyber_framework.agents.scenario_planner_agent import ScenarioPlannerAgent
+from termux_cyber_framework.agents.data_collector_agent import DataCollectorAgent
 from termux_cyber_framework.agents.tool_installer_agent import ToolInstallerAgent
 from termux_cyber_framework.agents.security_advisor_agent import SecurityAdvisorAgent
 from termux_cyber_framework.agents.network_agent import NetworkAgent
@@ -30,6 +32,7 @@ class OrchestratorAgent:
         self, master_interpreter: MasterAIInterpreter, tool_command_parser: AIInterpreter,
         tool_adapters: Dict[str, ToolAdapterPort], report_generators: List[ReportGeneratorPort],
         error_analyst: ErrorAnalystAgent, error_fixer: ErrorFixerAgent, auto_editor: AutoEditorAgent,
+        scenario_planner: ScenarioPlannerAgent, data_collector: DataCollectorAgent,
         tool_installer: ToolInstallerAgent, security_advisor: SecurityAdvisorAgent,
         network_agent: NetworkAgent, update_agent: UpdateAgent,
         config_manager: ConfigManagerAgent, dependency_auditor: DependencyAuditorAgent,
@@ -45,6 +48,8 @@ class OrchestratorAgent:
         self.error_analyst = error_analyst
         self.error_fixer = error_fixer
         self.auto_editor = auto_editor
+        self.scenario_planner = scenario_planner
+        self.data_collector = data_collector
         self.tool_installer = tool_installer
         self.security_advisor = security_advisor
         self.network_agent = network_agent
@@ -94,8 +99,33 @@ class OrchestratorAgent:
                     return "PentestGPT service started successfully. The analysis will now begin."
                 else: return "Failed to start the PentestGPT service."
             else: return "Failed to set up PentestGPT environment."
+        elif intent == "run_scenario":
+            return await self._handle_run_scenario(params.get("goal", user_input))
         else:
             return self._create_error_result(user_input, f"Could not understand the command: {user_input}")
+
+    async def _handle_run_scenario(self, goal: str) -> List[ExecutionResult]:
+        """Handles the execution of a multi-step scenario."""
+        self.logger.log(f"Received scenario goal: '{goal}'. Planning steps...", level=LogLevel.INFO)
+        plan = await self.scenario_planner.create_plan(goal)
+
+        if not plan:
+            self.logger.log("Scenario planner did not return a plan.", level=LogLevel.WARN)
+            return [self._create_error_result(goal, "Could not create a scenario plan for the given goal.")]
+
+        self.logger.log(f"Scenario plan created with {len(plan)} steps. Executing now...", level=LogLevel.INFO)
+
+        results = []
+        for i, command in enumerate(plan):
+            self.logger.log(f"Executing step {i+1}/{len(plan)}: {' '.join([command.tool_name] + command.args)}", level=LogLevel.INFO)
+            command_str = ' '.join([command.tool_name] + command.args)
+            result = await self._handle_run_tool(command_str)
+            results.append(result)
+            if not result.success:
+                self.logger.log(f"Step {i+1} failed. Halting scenario.", level=LogLevel.ERROR)
+                break
+
+        return results
 
     async def _handle_knowledge_query(self, params: dict) -> str:
         question = params.get("question")
@@ -194,6 +224,10 @@ class OrchestratorAgent:
         result.ai_advice = await self.security_advisor.provide_advice(result)
 
     def _finalize_execution(self, result: ExecutionResult):
+        if result.success and not self.config.dry_run:
+            # Run data collection in the background without waiting for it
+            asyncio.create_task(self.data_collector.process_and_store_result(result))
+
         paths = result.paths
         if paths:
             for reporter in self.report_generators:

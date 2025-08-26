@@ -33,6 +33,8 @@ from termux_cyber_framework.agents.system_resource_agent import SystemResourceAg
 from termux_cyber_framework.agents.pentestgpt_agent import PentestGptAgent
 from termux_cyber_framework.agents.doctor_agent import DoctorAgent
 from termux_cyber_framework.agents.auto_editor_agent import AutoEditorAgent
+from termux_cyber_framework.agents.scenario_planner_agent import ScenarioPlannerAgent
+from termux_cyber_framework.agents.data_collector_agent import DataCollectorAgent
 from termux_cyber_framework.services.pentestgpt_service_manager import PentestGptServiceManager
 from termux_cyber_framework.adapters.ollama_adapter import OllamaAdapter
 from termux_cyber_framework.adapters.tool_installer.git_installer import GitInstallerAdapter
@@ -110,6 +112,8 @@ def build_agent_system(config: Optional[Config] = None) -> Dict[str, Any]:
     error_analyst = ErrorAnalystAgent(api_key=api_key, knowledge_agent=knowledge_agent)
     error_fixer = ErrorFixerAgent(api_key=api_key)
     auto_editor = AutoEditorAgent(api_key=api_key)
+    scenario_planner = ScenarioPlannerAgent(api_key=api_key, tool_catalog=tool_catalog)
+    data_collector = DataCollectorAgent(api_key=api_key)
     security_advisor = SecurityAdvisorAgent(api_key=api_key)
     update_agent = UpdateAgent(logger=logger, audit_logger=audit_logger)
 
@@ -117,6 +121,7 @@ def build_agent_system(config: Optional[Config] = None) -> Dict[str, Any]:
         master_interpreter=master_interpreter, tool_command_parser=tool_command_parser,
         tool_adapters=tool_adapters, report_generators=report_generators,
         error_analyst=error_analyst, error_fixer=error_fixer, auto_editor=auto_editor,
+        scenario_planner=scenario_planner, data_collector=data_collector,
         tool_installer=tool_installer, security_advisor=security_advisor,
         network_agent=network_agent, update_agent=update_agent,
         config_manager=config_manager, dependency_auditor=dependency_auditor,

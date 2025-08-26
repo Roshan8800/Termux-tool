@@ -11,11 +11,13 @@ def mock_agents():
     agents = {
         "master_interpreter": MagicMock(spec=MasterAIInterpreter),
         "tool_command_parser": MagicMock(),
-        "tool_adapters": {"nmap": MagicMock()},
+        "tool_adapters": {"nmap": MagicMock(), "nikto": MagicMock()},
         "report_generators": [],
         "error_analyst": MagicMock(),
         "error_fixer": MagicMock(),
         "auto_editor": MagicMock(),
+        "scenario_planner": MagicMock(),
+        "data_collector": MagicMock(),
         "tool_installer": MagicMock(),
         "security_advisor": MagicMock(),
         "network_agent": MagicMock(),
@@ -32,8 +34,9 @@ def mock_agents():
         "execution_history": MagicMock()
     }
     agents["master_interpreter"].interpret = AsyncMock()
-    # Mock the async method on the agent
     agents["pentestgpt_agent"].ensure_environment_is_ready = AsyncMock()
+    agents["scenario_planner"].create_plan = AsyncMock()
+    agents["data_collector"].process_and_store_result = AsyncMock()
     return agents
 
 # ... (other tests are unchanged)
@@ -118,3 +121,30 @@ async def test_handle_input_unknown_intent(mock_agents):
     assert isinstance(result, ExecutionResult)
     assert result.success is False
     assert "Could not understand" in result.error.message
+
+@pytest.mark.asyncio
+async def test_handle_input_routes_to_run_scenario(mock_agents):
+    """Test that the 'run_scenario' intent is correctly handled."""
+    # Arrange
+    goal = "test scenario"
+    mock_agents["master_interpreter"].interpret.return_value = {"intent": "run_scenario", "parameters": {"goal": goal}}
+
+    mock_plan = [
+        Command(tool_name="nmap", args=["-sV", "example.com"], raw_command=goal),
+        Command(tool_name="nikto", args=["-h", "example.com"], raw_command=goal)
+    ]
+    mock_agents["scenario_planner"].create_plan.return_value = mock_plan
+
+    mock_result = ExecutionResult(command=mock_plan[0], success=True, output="mocked output")
+
+    orchestrator = OrchestratorAgent(**mock_agents)
+    orchestrator._handle_run_tool = AsyncMock(return_value=mock_result)
+
+    # Act
+    await orchestrator.handle_input(goal)
+
+    # Assert
+    mock_agents["scenario_planner"].create_plan.assert_called_once_with(goal)
+    assert orchestrator._handle_run_tool.call_count == len(mock_plan)
+    orchestrator._handle_run_tool.assert_any_call("nmap -sV example.com")
+    orchestrator._handle_run_tool.assert_any_call("nikto -h example.com")
