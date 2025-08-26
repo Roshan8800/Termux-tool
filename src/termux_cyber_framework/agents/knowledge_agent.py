@@ -11,16 +11,25 @@ class KnowledgeAgent:
     """
     def __init__(self, api_key: Optional[str], file_manager: FileManagerAgent, logger: LoggerPort, tool_catalog_path: str, cache_path: str = "reports/knowledge_cache.json"):
         self.model = None
-        if api_key:
-            genai.configure(api_key=api_key)
-            self.model = genai.GenerativeModel('gemini-1.5-flash')
-
+        self.api_key = api_key
         self.file_manager = file_manager
         self.logger = logger
         self.tool_catalog_path = tool_catalog_path
         self.cache_path = cache_path
+
+        if self.api_key:
+            self._initialize_model()
+
         self._load_tool_names()
         self._load_cache()
+
+    def _initialize_model(self):
+        """Initializes the Gemini model."""
+        try:
+            genai.configure(api_key=self.api_key)
+            self.model = genai.GenerativeModel('gemini-1.5-flash')
+        except Exception:
+            self.model = None
 
     def _load_tool_names(self):
         """Loads tool names from the catalog."""

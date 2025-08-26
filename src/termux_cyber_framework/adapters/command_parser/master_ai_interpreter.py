@@ -25,6 +25,10 @@ class MasterAIInterpreter:
         if not self.api_key or self.api_key == "dummy_key_for_testing":
             self.api_key = self._setup_api_key_flow()
 
+        self._initialize_model()
+
+    def _initialize_model(self):
+        """Initializes the Gemini model."""
         if self.api_key:
             try:
                 genai.configure(api_key=self.api_key)
