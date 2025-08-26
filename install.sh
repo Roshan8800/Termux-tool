@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # A script to automate the installation of the Termux Cyber Framework.
-# This script uses Poetry for robust dependency management.
 # Created by Roshan.
 
 echo "========================================="
@@ -44,12 +43,12 @@ else
 fi
 
 # 2. Install System Dependencies
-print_info "Installing system dependencies (python, pip, rust, build-essential)..."
+print_info "Installing system dependencies..."
 if [ "$PKG_MANAGER" == "apt-get" ]; then
     $SUDO_CMD apt-get update
-    $SUDO_CMD apt-get install -y python3 python3-pip python3-dev build-essential rustc shellcheck
+    $SUDO_CMD apt-get install build-essential python3-dev rustc -y
 else # pkg
-    pkg install -y python python-pip build-essential rust shellcheck
+    pkg install build-essential python rust -y
 fi
 
 if [ $? -ne 0 ]; then
@@ -58,39 +57,20 @@ if [ $? -ne 0 ]; then
 fi
 print_success "System dependencies installed successfully."
 
-# 3. Install Poetry
-print_info "Checking for and installing Poetry..."
-if ! command -v poetry &> /dev/null; then
-    print_info "Poetry not found. Installing via pip..."
-    pip install poetry
-    if [ $? -ne 0 ]; then
-        print_error "Failed to install Poetry. Please check your pip installation."
-        exit 1
-    fi
-    # Add poetry to path for the current session
-    export PATH="$HOME/.local/bin:$PATH"
-    print_success "Poetry installed successfully."
-else
-    print_success "Poetry is already installed."
-fi
-
-# 4. Install Project Dependencies with Poetry
-print_info "Installing project dependencies using Poetry..."
-# We run this from the script's directory to ensure it finds pyproject.toml
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-(cd "$SCRIPT_DIR" && poetry install)
+# 3. Install Python Dependencies
+print_info "Installing Python dependencies from requirements.txt..."
+pip install -r requirements.txt
 
 if [ $? -ne 0 ]; then
-    print_error "Failed to install project dependencies with Poetry. Please check the output above."
+    print_error "Failed to install Python dependencies. Please check your pip and internet connection."
     exit 1
 fi
-print_success "Project dependencies installed successfully."
+print_success "Python dependencies installed successfully."
 
-
-# 5. Make the script executable (self-permissioning)
+# 4. Make the script executable (self-permissioning)
 chmod +x install.sh
 
 echo ""
-print_success "Core installation complete!"
-print_info "The 'first_run_setup.sh' script will now create the 'cyber' command for you."
+print_success "Setup complete! You can now run the framework."
+print_info "Example: python -m src.termux_cyber_framework.main run \"scan example.com for open ports\""
 echo "========================================="

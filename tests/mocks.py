@@ -9,6 +9,9 @@ from termux_cyber_framework.core.use_cases.ports import AuditLoggerPort, Command
 
 
 class MockAIInterpreter(CommandParserPort):
+    def __init__(self, *args, **kwargs):
+        pass
+
     async def parse_command(self, text: str) -> Command:
         parts = text.split()
         tool_name = parts[0]

@@ -1,63 +1,56 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 from termux_cyber_framework.adapters.command_parser.ai_interpreter import AIInterpreter
+from termux_cyber_framework.core.use_cases.ports import AIProcessingPort
 from termux_cyber_framework.core.domain.models import Command
 
 @pytest.fixture
-def mock_generative_model():
-    """Fixture to mock the genai.GenerativeModel."""
-    mock_model = MagicMock()
-    # Mock the async method
-    mock_model.generate_content_async = AsyncMock()
-    return mock_model
+def mock_ai_service():
+    """Provides a mock AIProcessingPort."""
+    service = MagicMock(spec=AIProcessingPort)
+    service.interpret_tool_command = AsyncMock()
+    return service
 
 @pytest.fixture
-def ai_interpreter(tmp_path, mock_generative_model):
-    """Fixture to create an AIInterpreter with a mocked model."""
-    tool_catalog_path = tmp_path / "tool_catalog.json"
-    with open(tool_catalog_path, "w") as f:
-        f.write('[{"name": "nmap", "description": "Network scanner"}]')
+def tool_catalog():
+    """Provides a sample tool catalog."""
+    return [{"name": "nmap", "description": "Network scanner"}]
 
-    # Patch the genai.GenerativeModel to return our mock
-    import termux_cyber_framework.adapters.command_parser.ai_interpreter as ai_interpreter_module
-    original_generative_model = ai_interpreter_module.genai.GenerativeModel
-    ai_interpreter_module.genai.GenerativeModel = MagicMock(return_value=mock_generative_model)
-
-    interpreter = AIInterpreter(tool_catalog_path=str(tool_catalog_path), api_key="test_key")
-
-    # Restore the original after the test
-    yield interpreter
-    ai_interpreter_module.genai.GenerativeModel = original_generative_model
-
+@pytest.fixture
+def ai_interpreter(mock_ai_service, tool_catalog):
+    """Provides an AIInterpreter instance with a mocked AI service."""
+    return AIInterpreter(ai_service=mock_ai_service, tool_catalog=tool_catalog)
 
 @pytest.mark.asyncio
-async def test_parse_command_success(ai_interpreter, mock_generative_model):
+async def test_parse_command_success(ai_interpreter, mock_ai_service, tool_catalog):
     # Arrange
-    mock_response = MagicMock()
-    mock_response.text = '{"tool": "nmap", "args": ["-sV", "localhost"]}'
-    mock_generative_model.generate_content_async.return_value = mock_response
+    user_input = "scan localhost with nmap"
+    expected_command = Command(
+        tool_name="nmap",
+        args=["-sV", "localhost"],
+        raw_command=user_input
+    )
+    mock_ai_service.interpret_tool_command.return_value = expected_command
 
     # Act
-    command = await ai_interpreter.parse_command("scan localhost with nmap")
+    command = await ai_interpreter.parse_command(user_input)
 
     # Assert
-    assert isinstance(command, Command)
-    assert command.tool_name == "nmap"
-    assert command.args == ["-sV", "localhost"]
-    assert command.raw_command == "scan localhost with nmap"
-    mock_generative_model.generate_content_async.assert_called_once()
+    mock_ai_service.interpret_tool_command.assert_called_once_with(user_input, tool_catalog)
+    assert command == expected_command
 
 @pytest.mark.asyncio
-async def test_parse_command_json_fails(ai_interpreter, mock_generative_model):
+async def test_parse_command_fallback_on_exception(ai_interpreter, mock_ai_service, tool_catalog):
     # Arrange
-    mock_response = MagicMock()
-    mock_response.text = 'this is not json'
-    mock_generative_model.generate_content_async.return_value = mock_response
+    user_input = "scan localhost with nmap"
+    mock_ai_service.interpret_tool_command.side_effect = Exception("AI service failed")
 
     # Act
-    command = await ai_interpreter.parse_command("scan localhost with nmap")
+    command = await ai_interpreter.parse_command(user_input)
 
     # Assert
-    # Should fall back to simple parsing
+    mock_ai_service.interpret_tool_command.assert_called_once_with(user_input, tool_catalog)
+    # Verify that it falls back to simple parsing
     assert command.tool_name == "scan"
     assert command.args == ["localhost", "with", "nmap"]
+    assert command.raw_command == user_input

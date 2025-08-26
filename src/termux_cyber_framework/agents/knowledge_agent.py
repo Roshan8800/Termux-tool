@@ -1,46 +1,25 @@
-import google.generativeai as genai
 import json
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from .file_manager_agent import FileManagerAgent
-from termux_cyber_framework.core.use_cases.ports import LoggerPort, LogLevel
+from termux_cyber_framework.core.use_cases.ports import LoggerPort, LogLevel, AIProcessingPort
 
 class KnowledgeAgent:
     """
-    An agent that uses a generative AI model to answer user questions about
+    An agent that uses the Central AI Service to answer user questions about
     cybersecurity tools and concepts, with caching for repeated queries.
     """
-    def __init__(self, api_key: Optional[str], file_manager: FileManagerAgent, logger: LoggerPort, tool_catalog_path: str, cache_path: str = "reports/knowledge_cache.json"):
-        self.model = None
-        self.api_key = api_key
+    def __init__(self, ai_service: AIProcessingPort, file_manager: FileManagerAgent, logger: LoggerPort, tool_catalog: List[Dict[str, Any]], cache_path: str = "reports/knowledge_cache.json"):
+        self.ai_service = ai_service
         self.file_manager = file_manager
         self.logger = logger
-        self.tool_catalog_path = tool_catalog_path
+        self.tool_catalog = tool_catalog
         self.cache_path = cache_path
-
-        if self.api_key:
-            self._initialize_model()
-
         self._load_tool_names()
         self._load_cache()
 
-    def _initialize_model(self):
-        """Initializes the Gemini model."""
-        try:
-            genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel('gemini-1.5-flash')
-        except Exception:
-            self.model = None
-
     def _load_tool_names(self):
         """Loads tool names from the catalog."""
-        self.tool_names = []
-        content = self.file_manager.read_file(self.tool_catalog_path)
-        if content:
-            try:
-                catalog = json.loads(content)
-                self.tool_names = [tool.get("name", "").lower() for tool in catalog]
-            except json.JSONDecodeError:
-                pass
+        self.tool_names = [tool.get("name", "").lower() for tool in self.tool_catalog]
 
     def _load_cache(self):
         """Loads the query cache from a file."""
@@ -66,38 +45,22 @@ class KnowledgeAgent:
 
     async def query(self, question: str) -> str:
         """
-        Queries the generative model or local cache with a user's question.
+        Queries the Central AI Service or local cache with a user's question.
         """
-        if not self.model:
-            return "Knowledge Agent is disabled because no API key was provided."
-
         cache_key = question.strip().lower()
         if cache_key in self.query_cache:
             self.logger.log(f"Returning cached response for question: '{question}'", level=LogLevel.INFO)
             return self.query_cache[cache_key]
 
-        self.logger.log(f"No cache hit. Querying generative model for: '{question}'", level=LogLevel.INFO)
+        self.logger.log(f"No cache hit. Querying Central AI Service for: '{question}'", level=LogLevel.INFO)
 
-        tool_context_prompt = ""
         detected_tool = self._detect_tool_in_question(question)
-        if detected_tool:
-            tool_context_prompt = f"The user's question is specifically about the '{detected_tool}' tool. Prioritize your answer based on its official documentation, common usage patterns, and best practices."
 
-        prompt = f"""
-        You are a world-class cybersecurity expert and senior penetration tester.
-        Your task is to answer the following user question about a cybersecurity tool or concept.
-        {tool_context_prompt}
-        Provide a clear, concise, and accurate answer.
-        If the question is about how to use a tool, provide an example command.
-        If possible, include 1-2 high-quality reference links (e.g., official documentation, well-known blogs) at the end of your answer.
-        User Question: "{question}"
-        Answer:
-        """
         try:
-            response = await self.model.generate_content_async(prompt)
-            answer = response.text
+            answer = await self.ai_service.answer_knowledge_question(question, tool_context=detected_tool)
             self.query_cache[cache_key] = answer
             self._save_cache()
             return answer
         except Exception as e:
+            self.logger.log(f"An error occurred while querying the knowledge base via Central AI Service: {e}", level=LogLevel.ERROR)
             return f"An error occurred while querying the knowledge base: {e}"

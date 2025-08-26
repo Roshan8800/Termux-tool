@@ -32,18 +32,15 @@ from termux_cyber_framework.agents.knowledge_agent import KnowledgeAgent
 from termux_cyber_framework.agents.system_resource_agent import SystemResourceAgent
 from termux_cyber_framework.agents.pentestgpt_agent import PentestGptAgent
 from termux_cyber_framework.agents.doctor_agent import DoctorAgent
-from termux_cyber_framework.agents.auto_editor_agent import AutoEditorAgent
-from termux_cyber_framework.agents.scenario_planner_agent import ScenarioPlannerAgent
-from termux_cyber_framework.agents.data_collector_agent import DataCollectorAgent
-from termux_cyber_framework.agents.user_interaction_agent import UserInteractionAgent
 from termux_cyber_framework.services.pentestgpt_service_manager import PentestGptServiceManager
+from termux_cyber_framework.services.central_ai_service import CentralAIService
 from termux_cyber_framework.adapters.ollama_adapter import OllamaAdapter
 from termux_cyber_framework.adapters.tool_installer.git_installer import GitInstallerAdapter
 from termux_cyber_framework.adapters.tool_installer.pip_installer import PipInstallerAdapter
 from termux_cyber_framework.adapters.tool_installer.pkg_installer import PkgInstallerAdapter
 from termux_cyber_framework.adapters.tool_installer.shell_installer import ShellInstallerAdapter
 from termux_cyber_framework.adapters.logger.install_logger import InstallLogger
-from termux_cyber_framework.adapters.cli.view import display_welcome, display_error
+from termux_cyber_framework.adapters.cli.view import display_welcome, display_execution_result, display_error
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -70,6 +67,10 @@ def build_agent_system(config: Optional[Config] = None) -> Dict[str, Any]:
     config_manager = ConfigManagerAgent(file_manager=file_manager, config_path=config_path)
     api_key = config_manager.get_api_key("google_gemini") or os.getenv("GOOGLE_API_KEY")
 
+    # --- Central AI Service (The "Brain") ---
+    ollama_adapter = OllamaAdapter(command_runner=command_runner)
+    central_ai_service = CentralAIService(api_key=api_key, ollama_adapter=ollama_adapter)
+
     install_logger = InstallLogger()
     installers = {
         "git": GitInstallerAdapter(command_runner, install_logger),
@@ -88,15 +89,14 @@ def build_agent_system(config: Optional[Config] = None) -> Dict[str, Any]:
         PdfReporter(file_manager=file_manager)
     ]
 
-    master_interpreter = MasterAIInterpreter(api_key=api_key, config_manager=config_manager, console=console)
-    tool_command_parser = AIInterpreter(tool_catalog_path=tool_catalog_path, api_key=api_key or "dummy_key")
-    knowledge_agent = KnowledgeAgent(api_key=api_key, file_manager=file_manager, logger=logger, tool_catalog_path=tool_catalog_path)
+    master_interpreter = MasterAIInterpreter(ai_service=central_ai_service, config_manager=config_manager, console=console)
+    tool_command_parser = AIInterpreter(ai_service=central_ai_service, tool_catalog=tool_catalog)
+    knowledge_agent = KnowledgeAgent(ai_service=central_ai_service, file_manager=file_manager, logger=logger, tool_catalog=tool_catalog)
     network_agent = NetworkAgent(logger=logger)
     dependency_auditor = DependencyAuditorAgent(logger=logger)
     system_resource_agent = SystemResourceAgent(command_runner=command_runner)
 
     # Services and Feature Agents
-    ollama_adapter = OllamaAdapter(command_runner=command_runner)
     pentestgpt_service_manager = PentestGptServiceManager(command_runner=command_runner) # New
     pentestgpt_agent = PentestGptAgent(
         console=console, system_resource_agent=system_resource_agent,
@@ -110,21 +110,15 @@ def build_agent_system(config: Optional[Config] = None) -> Dict[str, Any]:
         master_interpreter=master_interpreter, tool_catalog_path=tool_catalog_path
     )
 
-    error_analyst = ErrorAnalystAgent(api_key=api_key, knowledge_agent=knowledge_agent)
-    error_fixer = ErrorFixerAgent(api_key=api_key)
-    auto_editor = AutoEditorAgent(api_key=api_key)
-    scenario_planner = ScenarioPlannerAgent(api_key=api_key, tool_catalog=tool_catalog)
-    data_collector = DataCollectorAgent(api_key=api_key)
-    user_interaction = UserInteractionAgent(console=console, api_key=api_key)
-    security_advisor = SecurityAdvisorAgent(api_key=api_key)
+    error_analyst = ErrorAnalystAgent(ai_service=central_ai_service, knowledge_agent=knowledge_agent)
+    error_fixer = ErrorFixerAgent(ai_service=central_ai_service)
+    security_advisor = SecurityAdvisorAgent(ai_service=central_ai_service)
     update_agent = UpdateAgent(logger=logger, audit_logger=audit_logger)
 
     orchestrator = OrchestratorAgent(
         master_interpreter=master_interpreter, tool_command_parser=tool_command_parser,
         tool_adapters=tool_adapters, report_generators=report_generators,
-        error_analyst=error_analyst, error_fixer=error_fixer, auto_editor=auto_editor,
-        scenario_planner=scenario_planner, data_collector=data_collector,
-        user_interaction_agent=user_interaction,
+        error_analyst=error_analyst, error_fixer=error_fixer,
         tool_installer=tool_installer, security_advisor=security_advisor,
         network_agent=network_agent, update_agent=update_agent,
         config_manager=config_manager, dependency_auditor=dependency_auditor,
@@ -164,9 +158,11 @@ def run(command: str = typer.Argument(..., help="The command to run in natural l
     orchestrator = get_agent_system()["orchestrator"]
     orchestrator.config.dry_run = dry_run
     try:
-        asyncio.run(orchestrator.handle_input(command))
+        result = asyncio.run(orchestrator.handle_input(command))
+        if hasattr(result, 'success'): display_execution_result(result)
+        else: console.print(Panel(str(result), title="[bold green]Response[/bold green]", expand=False))
     except Exception as e:
-        display_error(f"A critical error occurred in the CLI: {e}")
+        display_error(f"An unexpected error occurred in the CLI: {e}")
 
 @app.command()
 def shell():
@@ -180,7 +176,9 @@ def shell():
                 console.print("This shell accepts natural language commands. Try 'scan example.com', 'start pentest session' or 'what is SQL injection?'. Type ':exit' to quit.")
                 continue
             if not command_str.strip(): continue
-            asyncio.run(orchestrator.handle_input(command_str))
+            result = asyncio.run(orchestrator.handle_input(command_str))
+            if hasattr(result, 'success'): display_execution_result(result)
+            else: console.print(Panel(str(result), title="[bold green]Response[/bold green]", expand=False))
         except KeyboardInterrupt:
             console.print("\nExiting shell.")
             break

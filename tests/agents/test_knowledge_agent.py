@@ -1,21 +1,24 @@
 import pytest
 import json
-import asyncio
-from unittest.mock import patch, MagicMock, AsyncMock
-
-# Mock the genai module at the top level
-import sys
-mock_genai = MagicMock()
-sys.modules['google.generativeai'] = mock_genai
-
+from unittest.mock import MagicMock, AsyncMock
 from termux_cyber_framework.agents.knowledge_agent import KnowledgeAgent
 from termux_cyber_framework.agents.file_manager_agent import FileManagerAgent
-from termux_cyber_framework.core.use_cases.ports import LoggerPort
+from termux_cyber_framework.core.use_cases.ports import LoggerPort, AIProcessingPort, LogLevel
+
+@pytest.fixture
+def mock_ai_service():
+    """Provides a mock AIProcessingPort."""
+    service = MagicMock(spec=AIProcessingPort)
+    service.answer_knowledge_question = AsyncMock()
+    return service
 
 @pytest.fixture
 def mock_file_manager():
     """Provides a mock FileManagerAgent."""
-    return MagicMock(spec=FileManagerAgent)
+    manager = MagicMock(spec=FileManagerAgent)
+    manager.read_file.return_value = ""  # Default to no cache
+    manager.write_file.return_value = None
+    return manager
 
 @pytest.fixture
 def mock_logger():
@@ -23,70 +26,68 @@ def mock_logger():
     return MagicMock(spec=LoggerPort)
 
 @pytest.fixture
-def agent(mock_file_manager, mock_logger):
-    """Provides a fully mocked KnowledgeAgent instance."""
-    with patch('termux_cyber_framework.agents.knowledge_agent.KnowledgeAgent._initialize_model'):
-        # Mock the file reads that happen during __init__
-        mock_file_manager.read_file.side_effect = [
-            json.dumps([{"name": "nmap"}]), # tool catalog
-            json.dumps({}) # empty cache
-        ]
+def tool_catalog():
+    """Provides a sample tool catalog."""
+    return [{"name": "nmap", "description": "scanner"}, {"name": "sqlmap", "description": "injector"}]
 
-        agent_instance = KnowledgeAgent(
-            api_key="fake_key",
-            file_manager=mock_file_manager,
-            logger=mock_logger,
-            tool_catalog_path="/fake/path"
-        )
-        # Manually set a mock model instance for tests to use
-        agent_instance.model = MagicMock()
-        agent_instance.model.generate_content_async = AsyncMock()
-
-        # Reset side effect after init
-        mock_file_manager.read_file.side_effect = None
-        yield agent_instance
-
-def test_init_handles_no_api_key(mock_file_manager, mock_logger):
-    """Test agent initialization without an API key."""
-    mock_file_manager.read_file.return_value = "{}"
-    agent = KnowledgeAgent(api_key=None, file_manager=mock_file_manager, logger=mock_logger, tool_catalog_path="")
-    assert agent.model is None
-    result = asyncio.run(agent.query("test"))
-    assert "disabled" in result
+@pytest.fixture
+def knowledge_agent(mock_ai_service, mock_file_manager, mock_logger, tool_catalog):
+    """Provides a KnowledgeAgent instance with mocked dependencies."""
+    return KnowledgeAgent(
+        ai_service=mock_ai_service,
+        file_manager=mock_file_manager,
+        logger=mock_logger,
+        tool_catalog=tool_catalog
+    )
 
 @pytest.mark.asyncio
-async def test_query_uses_cache(agent):
-    """Test that a second query for the same question hits the cache."""
+async def test_query_uses_cache(knowledge_agent, mock_ai_service, mock_file_manager):
     # Arrange
     question = "how do i use nmap?"
-    cached_answer = "cached nmap answer"
-    agent.query_cache = {question.lower(): cached_answer}
+    cached_answer = "This is the cached answer for nmap."
+    mock_file_manager.read_file.return_value = json.dumps({question: cached_answer})
+
+    # Re-initialize agent to load the cache
+    knowledge_agent._load_cache()
 
     # Act
-    result = await agent.query(question)
+    answer = await knowledge_agent.query(question)
 
     # Assert
-    assert result == cached_answer
-    agent.model.generate_content_async.assert_not_called()
+    assert answer == cached_answer
+    mock_ai_service.answer_knowledge_question.assert_not_called()
+    knowledge_agent.logger.log.assert_any_call(f"Returning cached response for question: '{question}'", level=LogLevel.INFO)
 
 @pytest.mark.asyncio
-async def test_query_saves_to_cache(agent, mock_file_manager):
-    """Test that a new query's result is saved to the cache."""
+async def test_query_calls_ai_service_and_caches_result(knowledge_agent, mock_ai_service, mock_file_manager):
     # Arrange
-    question = "what is xss?"
-    ai_answer = "a fresh answer"
-    agent.query_cache = {}
-
-    mock_response = MagicMock()
-    mock_response.text = ai_answer
-    agent.model.generate_content_async.return_value = mock_response
+    question = "what is sql injection?"
+    ai_answer = "SQL injection is a vulnerability..."
+    mock_ai_service.answer_knowledge_question.return_value = ai_answer
 
     # Act
-    result = await agent.query(question)
+    answer = await knowledge_agent.query(question)
 
     # Assert
-    assert result == ai_answer
+    assert answer == ai_answer
+    mock_ai_service.answer_knowledge_question.assert_called_once_with(question, tool_context=None)
     mock_file_manager.write_file.assert_called_once()
+    # Check that the cache was updated correctly
     written_content = mock_file_manager.write_file.call_args[0][1]
     cache_data = json.loads(written_content)
     assert cache_data[question.lower()] == ai_answer
+
+@pytest.mark.asyncio
+async def test_query_detects_tool_and_passes_context(knowledge_agent, mock_ai_service):
+    # Arrange
+    question = "how to use sqlmap for blind injection?"
+    ai_answer = "For blind injection with sqlmap, you can use..."
+    mock_ai_service.answer_knowledge_question.return_value = ai_answer
+
+    # Act
+    answer = await knowledge_agent.query(question)
+
+    # Assert
+    assert answer == ai_answer
+    # Verify that the detected tool name was passed as context
+    mock_ai_service.answer_knowledge_question.assert_called_once_with(question, tool_context="sqlmap")

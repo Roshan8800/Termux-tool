@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from termux_cyber_framework.core.domain.models import (
     Command, Tool, ExecutionResult, Error, Remediation)
 from termux_cyber_framework.core.domain.config import Config
@@ -195,4 +195,46 @@ class NetworkPort(ABC):
         """
         Checks for an active internet connection.
         """
+        pass
+
+
+class AIProcessingPort(ABC):
+    """
+    A unified port for all AI model interactions, acting as the interface
+    for the 'Central AI Brain'.
+    """
+    @abstractmethod
+    async def interpret_master_command(self, user_input: str) -> Dict[str, Any]:
+        pass
+
+    @abstractmethod
+    async def interpret_tool_command(self, user_input: str, tool_catalog: List[Dict[str, Any]]) -> Command:
+        pass
+
+    @abstractmethod
+    async def plan_scenario(self, goal: str) -> List[Command]:
+        pass
+
+    @abstractmethod
+    async def analyze_error(self, command: Command, error: Error) -> str:
+        pass
+
+    @abstractmethod
+    async def suggest_command_fix(self, command: Command, error: Error) -> Optional[Command]:
+        pass
+
+    @abstractmethod
+    async def generate_script_patch(self, script_content: str, error: Error, command: Command) -> str:
+        pass
+
+    @abstractmethod
+    async def answer_knowledge_question(self, question: str, tool_context: Optional[str] = None) -> str:
+        pass
+
+    @abstractmethod
+    async def extract_data_from_output(self, result: ExecutionResult) -> List[Dict[str, Any]]:
+        pass
+
+    @abstractmethod
+    async def summarize_execution_result(self, result: ExecutionResult) -> str:
         pass

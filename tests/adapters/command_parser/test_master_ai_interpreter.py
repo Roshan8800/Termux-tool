@@ -1,15 +1,19 @@
 import pytest
-import json
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import MagicMock, AsyncMock, patch
 from rich.console import Console
-
-# Mock the genai module at the top level to prevent real API calls
-import sys
-mock_genai = MagicMock()
-sys.modules['google.generativeai'] = mock_genai
 
 from termux_cyber_framework.adapters.command_parser.master_ai_interpreter import MasterAIInterpreter
 from termux_cyber_framework.agents.config_manager_agent import ConfigManagerAgent
+from termux_cyber_framework.core.use_cases.ports import AIProcessingPort
+
+@pytest.fixture
+def mock_ai_service():
+    """Provides a mock AIProcessingPort with a configurable api_key attribute."""
+    service = MagicMock(spec=AIProcessingPort)
+    service.api_key = None  # Start with no key by default
+    service.model = None
+    service.interpret_master_command = AsyncMock()
+    return service
 
 @pytest.fixture
 def mock_config_manager():
@@ -18,81 +22,74 @@ def mock_config_manager():
 
 @pytest.fixture
 def mock_console():
-    """Provides a mock rich Console."""
+    """Provides a mock rich.console.Console."""
     return MagicMock(spec=Console)
 
 @pytest.fixture
-def agent(mock_config_manager, mock_console):
-    """
-    Provides a fully mocked MasterAIInterpreter instance for testing.
-    This fixture patches the model and API key setup flows.
-    """
-    with patch('termux_cyber_framework.adapters.command_parser.master_ai_interpreter.MasterAIInterpreter._setup_api_key_flow', return_value="fake-key"), \
-         patch('termux_cyber_framework.adapters.command_parser.master_ai_interpreter.MasterAIInterpreter._initialize_model') as mock_init_model:
-
-        agent_instance = MasterAIInterpreter(
-            api_key="fake-key",
+def interpreter(mock_ai_service, mock_config_manager, mock_console):
+    """Provides a MasterAIInterpreter instance with mocked dependencies."""
+    # We patch the setup flow to avoid actual user input during tests
+    with patch.object(MasterAIInterpreter, '_setup_api_key_flow', return_value=None) as mock_setup_flow:
+        instance = MasterAIInterpreter(
+            ai_service=mock_ai_service,
             config_manager=mock_config_manager,
             console=mock_console
         )
-        # Manually set a mock model instance for tests to use
-        agent_instance.model = MagicMock()
-        agent_instance.model.generate_content_async = AsyncMock()
-        yield agent_instance
+        instance.mock_setup_flow = mock_setup_flow
+        yield instance
 
-def test_init_handles_bad_api_key(mock_config_manager, mock_console):
-    """Test that the agent initializes with model=None if the key is invalid."""
-    # We test this by patching _initialize_model to simulate the failure
-    with patch('termux_cyber_framework.adapters.command_parser.master_ai_interpreter.MasterAIInterpreter._initialize_model', lambda self: setattr(self, 'model', None)):
-        agent = MasterAIInterpreter(
-            api_key="bad-key",
+def test_init_with_no_api_key_triggers_setup_flow(interpreter, mock_ai_service):
+    """
+    Test that if the AI service has no API key, the setup flow is triggered.
+    """
+    # The setup flow is mocked in the fixture, so we just check if it was called.
+    assert interpreter.mock_setup_flow.called
+
+def test_init_with_api_key_does_not_trigger_setup_flow(mock_ai_service, mock_config_manager, mock_console):
+    """
+    Test that if the AI service already has an API key, the setup flow is not triggered.
+    """
+    mock_ai_service.api_key = "pre-existing-key"
+    with patch.object(MasterAIInterpreter, '_setup_api_key_flow') as mock_setup_flow:
+        MasterAIInterpreter(
+            ai_service=mock_ai_service,
             config_manager=mock_config_manager,
             console=mock_console
         )
-        assert agent.model is None
+        assert not mock_setup_flow.called
 
 @pytest.mark.asyncio
-async def test_interpret_run_tool(agent):
-    """Test interpreting a 'run_tool' command."""
-    response_json = {"intent": "run_tool", "parameters": {"natural_language_command": "scan example.com"}}
-    mock_response = MagicMock()
-    mock_response.text = f"```json\n{json.dumps(response_json)}\n```"
-    agent.model.generate_content_async.return_value = mock_response
+async def test_interpret_delegates_to_ai_service(interpreter, mock_ai_service):
+    """
+    Test that the interpret method correctly calls the central AI service.
+    """
+    # Arrange
+    user_input = "scan example.com"
+    expected_response = {"intent": "run_tool", "parameters": {}}
+    mock_ai_service.interpret_master_command.return_value = expected_response
+    # Pretend the model is loaded for this test
+    mock_ai_service.model = MagicMock()
 
-    result = await agent.interpret("scan example.com")
+    # Act
+    result = await interpreter.interpret(user_input)
 
-    assert result == response_json
-
-@pytest.mark.asyncio
-async def test_interpret_set_api_key(agent):
-    """Test interpreting a 'set_api_key' command."""
-    response_json = {"intent": "set_api_key", "parameters": {"service": "google_gemini", "api_key": "123"}}
-    mock_response = MagicMock()
-    mock_response.text = json.dumps(response_json)
-    agent.model.generate_content_async.return_value = mock_response
-
-    result = await agent.interpret("set key to 123")
-
-    assert result == response_json
+    # Assert
+    mock_ai_service.interpret_master_command.assert_called_once_with(user_input)
+    assert result == expected_response
 
 @pytest.mark.asyncio
-async def test_interpret_handles_api_error(agent):
-    """Test that the interpreter returns an error on API failure."""
-    agent.model.generate_content_async.side_effect = Exception("API Error")
+async def test_interpret_returns_error_if_model_is_not_loaded(interpreter, mock_ai_service):
+    """
+    Test that an error is returned if the AI model is not available.
+    """
+    # Arrange
+    user_input = "scan example.com"
+    mock_ai_service.model = None # Ensure model is not loaded
 
-    result = await agent.interpret("some command")
+    # Act
+    result = await interpreter.interpret(user_input)
 
+    # Assert
     assert result["intent"] == "error"
-    assert "API Error" in result["parameters"]["message"]
-
-@pytest.mark.asyncio
-async def test_interpret_handles_invalid_json(agent):
-    """Test that the interpreter returns an error for invalid JSON."""
-    mock_response = MagicMock()
-    mock_response.text = "this is not json"
-    agent.model.generate_content_async.return_value = mock_response
-
-    result = await agent.interpret("some command")
-
-    assert result["intent"] == "error"
-    assert "Failed to interpret command" in result["parameters"]["message"]
+    assert "disabled" in result["parameters"]["message"]
+    mock_ai_service.interpret_master_command.assert_not_called()

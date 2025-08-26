@@ -1,10 +1,20 @@
 #!/bin/bash
 
-# Wrapper script for the Termux Cyber Framework to provide a simple, natural language interface.
-# This script abstracts away the underlying command structure.
+# Wrapper script for the Termux Cyber Framework to provide a simpler command-line alias.
+# This script allows running the framework with `cyber framework <command>` or `cyber ai <command>`.
 
 # Get the directory where this script is located to ensure we run poetry from the project root.
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+# Check if the first argument is 'framework' or 'ai'
+if [[ "$1" != "framework" && "$1" != "ai" ]]; then
+    echo "Usage: cyber [framework|ai] [command]"
+    echo "Example: cyber framework run \"scan example.com\""
+    exit 1
+fi
+
+# Remove the first argument ('framework' or 'ai') so the rest can be passed to the tcf script.
+shift
 
 # Check if poetry is installed
 if ! command -v poetry &> /dev/null; then
@@ -13,13 +23,5 @@ if ! command -v poetry &> /dev/null; then
     exit 1
 fi
 
-# Change to the script's directory to ensure poetry commands work correctly.
-cd "$SCRIPT_DIR"
-
-# If there are no arguments, launch the interactive shell.
-if [ $# -eq 0 ]; then
-    poetry run tcf shell
-else
-    # If there are arguments, treat them as a single natural language command and run it.
-    poetry run tcf run "$*"
-fi
+# Execute the main framework script from the project root directory, passing all remaining arguments.
+(cd "$SCRIPT_DIR" && poetry run tcf "$@")
